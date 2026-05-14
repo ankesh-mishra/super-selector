@@ -13,6 +13,9 @@ from app.models import Base  # noqa: F401
 config = context.config
 
 db_url = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+# Railway injects postgresql:// — asyncpg requires postgresql+asyncpg://
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 # asyncpg doesn't support ?sslmode=require — strip it; SSL is handled via connect_args
 if "sslmode=require" in db_url:
     db_url = db_url.replace("?sslmode=require", "").replace("&sslmode=require", "")

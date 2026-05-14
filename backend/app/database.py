@@ -5,9 +5,11 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Neon (and some hosted Postgres) append ?sslmode=require to the URL.
-# asyncpg doesn't understand that query param — strip it and pass ssl via connect_args.
+# Railway injects postgresql:// — asyncpg requires postgresql+asyncpg://
+# Also handle ?sslmode=require (Neon/other hosted Postgres)
 _db_url = settings.database_url
+if _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 _connect_args = {}
 if "sslmode=require" in _db_url:
     _db_url = _db_url.replace("?sslmode=require", "").replace("&sslmode=require", "")
