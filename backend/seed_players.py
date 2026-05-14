@@ -1,14 +1,29 @@
 """
-One-shot script to seed teams and players into the database.
-Run from backend/: python seed_players.py
+One-shot script to seed players into the database.
+Teams must already exist (run seed_teams.py first, or let this script create them).
+
+Usage (run from backend/):
+    DATABASE_URL=postgresql+asyncpg://... python seed_players.py
+
+Railway note:
+    Railway exposes the URL as DATABASE_URL in the form postgresql://...
+    This script auto-converts it to the asyncpg scheme if needed.
 """
 import asyncio
+import os
+import sys
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from app.models import Team, Player, GenderEnum
 
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@db:5432/superselector"
+_raw_url = os.environ.get("DATABASE_URL", "")
+if not _raw_url:
+    sys.exit("ERROR: DATABASE_URL environment variable is not set.")
+
+# Railway / Render return  postgresql://  — asyncpg requires  postgresql+asyncpg://
+DATABASE_URL = _raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 PLAYERS = [
     # (player_name, team, gender, bid_points, is_captain)
