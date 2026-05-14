@@ -1,0 +1,78 @@
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  theme.css — edit THIS FILE to restyle the entire app        ║
+  ║  Inspiration: dark navy, neon green/cyan, gradient borders   ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+/* ── Google Fonts ── */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@400;500;600;700;800&display=swap");
+
+/* ── Colour tokens ── */
+@layer base {
+  :root {
+    --background:        #080d14;
+    --foreground:        #f0f4f8;
+    --card:              #0f1623;
+    --card-foreground:   #f0f4f8;
+    --popover:           #0f1623;
+    --popover-foreground:#f0f4f8;
+    --primary:           #10b981;
+    --primary-foreground:#030712;
+    --secondary:         #1a2236;
+    --secondary-foreground: #f0f4f8;
+    --muted:             #1a2236;
+    --muted-foreground:  #64748b;
+    --accent:            #064e35;
+    --accent-foreground: #10b981;
+    --destructive:       #ef4444;
+    --border:            #1e2d42;
+    --input:             #1a2236;
+    --ring:              #10b981;
+    --radius:            0.75rem;
+  }
+}
+
+/* ── Gradient border card ── */
+/* Usage: add class "card-glow" to any card element */
+@layer utilities {
+  .card-glow {
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      linear-gradient(135deg, rgba(16,185,129,0.55) 0%, rgba(6,182,212,0.35) 100%) border-box;
+    border: 1px solid transparent;
+  }
+
+  .card-glow-strong {
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      linear-gradient(135deg, #10b981 0%, #06b6d4 100%) border-box;
+    border: 1px solid transparent;
+    box-shadow: 0 0 20px rgba(16,185,129,0.12), 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .badge-live {
+    background: rgba(239,68,68,0.15);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+
+  .badge-open {
+    background: rgba(16,185,129,0.15);
+    color: #34d399;
+    border: 1px solid rgba(16,185,129,0.3);
+  }
+
+  .badge-completed {
+    background: rgba(100,116,139,0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(100,116,139,0.25);
+  }
+}
