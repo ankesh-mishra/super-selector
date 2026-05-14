@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: superselector
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── FastAPI backend (devcontainer attaches here) ──────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspace:cached
+    working_dir: /workspace/select/backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/superselector
+    depends_on:
+      db:
+        condition: service_healthy
+    # Keep the container alive so VS Code can attach
+    stdin_open: true
+    tty: true
+
+  # ── Vite React frontend ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ../frontend:/app:cached
+      - /app/node_modules
+    working_dir: /app
+    command: npm run dev -- --host
+    ports:
+      - "5173:5173"
+    env_file:
+      - ../.env
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

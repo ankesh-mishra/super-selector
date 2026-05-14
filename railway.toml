@@ -1,0 +1,13 @@
+# Railway deployment configuration
+# Docs: https://docs.railway.app/reference/config-as-code
+
+[build]
+builder = "nixpacks"
+
+# ── Backend ──────────────────────────────────────────────────────────────────
+# Defined in railway dashboard as a separate service pointing to ./backend
+# with the Dockerfile.prod override.
+# Railway auto-injects DATABASE_URL from the linked Postgres plugin.
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+# Defined in railway dashboard as a separate static service pointing to ./frontend
