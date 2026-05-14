@@ -1,6 +1,3 @@
 [build]
-builder = "nixpacks"
-buildCommand = "npm ci && npm run build"
-
-[deploy]
-startCommand = "npx serve -s dist --listen tcp://0.0.0.0:$PORT"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.prod"
