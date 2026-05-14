@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { myContestsApi } from '../api/endpoints'
 
 function statusOrder(mc) {
+  if (!mc.contest) return 3
   if (!mc.contest.is_completed && mc.contest.is_locked) return 0
   if (!mc.contest.is_completed && !mc.contest.is_locked) return 1
   return 2

@@ -4,7 +4,7 @@ import { myContestsApi, tournamentsApi } from '../api/endpoints'
 
 function sortActive(myContests) {
   return [...myContests]
-    .filter((mc) => !mc.contest.is_completed)
+    .filter((mc) => mc.contest && !mc.contest.is_completed)
     .sort((a, b) => {
       if (a.contest.is_locked && !b.contest.is_locked) return -1
       if (!a.contest.is_locked && b.contest.is_locked) return 1
