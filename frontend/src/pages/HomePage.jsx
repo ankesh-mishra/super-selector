@@ -58,7 +58,7 @@ export default function HomePage() {
             className="card-glow rounded-2xl p-8 text-center"
             style={{ background: 'linear-gradient(#0f1623,#0f1623) padding-box, linear-gradient(135deg,rgba(16,185,129,.4),rgba(6,182,212,.25)) border-box', border: '1px solid transparent' }}
           >
-            <p className="text-3xl mb-2">🏸</p>
+            <img src="/sports-logos/Badminton.jpg" alt="Badminton" className="w-12 h-12 object-contain mx-auto mb-2" />
             <p className="text-sm mb-3" style={{ color: '#64748b' }}>No active contests yet.</p>
             <Link to="/tournaments" className="text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition">
               Browse tournaments →
@@ -132,7 +132,11 @@ export default function HomePage() {
                 className="flex items-center gap-3 rounded-xl px-4 py-3 transition hover:brightness-110"
                 style={{ background: '#0f1623', border: '1px solid #1e2d42' }}
               >
-                <span className="text-xl">{t.sport === 'BADMINTON' ? '🏸' : '🏏'}</span>
+                <img
+                  src={t.sport === 'BADMINTON' ? '/sports-logos/Badminton.jpg' : '/sports-logos/Cricket.png'}
+                  alt={t.sport}
+                  className="w-7 h-7 object-contain shrink-0"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-white truncate">{t.name}</p>
                   {t.description && (

@@ -45,7 +45,11 @@ export default function TournamentDetailPage() {
         style={{ background: '#0f1623', border: '1px solid #1e2d42' }}
       >
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <span className="text-2xl">{tournament.sport === 'BADMINTON' ? '🏸' : '🏏'}</span>
+          <img
+            src={tournament.sport === 'BADMINTON' ? '/sports-logos/Badminton.jpg' : '/sports-logos/Cricket.png'}
+            alt={tournament.sport}
+            className="w-7 h-7 object-contain shrink-0"
+          />
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.3)' }}>
             {tournament.sport === 'BADMINTON' ? 'Badminton' : 'Cricket'}
           </span>

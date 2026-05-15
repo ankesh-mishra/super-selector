@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom'
 import { tournamentsApi } from '../api/endpoints'
 
 const SPORTS = [
-  { key: 'BADMINTON', label: 'Badminton', icon: '🏸' },
-  { key: 'CRICKET',   label: 'Cricket',   icon: '🏏' },
+  { key: 'BADMINTON', label: 'Badminton', icon: '/sports-logos/Badminton.jpg' },
+  { key: 'CRICKET',   label: 'Cricket',   icon: '/sports-logos/Cricket.png' },
 ]
 
 export default function TournamentsPage() {
@@ -33,7 +33,7 @@ export default function TournamentsPage() {
                 : { background: '#0f1623', border: '1px solid #1e2d42', color: '#64748b' }
             }
           >
-            <span>{s.icon}</span>
+            <img src={s.icon} alt={s.label} className="w-5 h-5 object-contain" />
             {s.label}
           </button>
         ))}
@@ -45,7 +45,7 @@ export default function TournamentsPage() {
 
       {!isLoading && tournaments.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-3xl mb-3">{SPORTS.find((s) => s.key === sport)?.icon}</p>
+          <img src={SPORTS.find((s) => s.key === sport)?.icon} alt={sport} className="w-12 h-12 object-contain mx-auto mb-3" />
           <p className="text-sm" style={{ color: '#475569' }}>No {sport.toLowerCase()} tournaments yet.</p>
         </div>
       )}

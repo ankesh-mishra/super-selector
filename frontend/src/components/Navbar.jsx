@@ -15,7 +15,7 @@ function NavItem({ to, icon, label, onClick }) {
           : 'text-slate-400 hover:text-white hover:bg-white/5'
       }`}
     >
-      <span className="text-base leading-none">{icon}</span>
+      <img src={icon} alt="" className="w-5 h-5 object-contain shrink-0" />
       {label}
     </Link>
   )
@@ -90,10 +90,11 @@ export default function Navbar() {
 
         {/* Nav links */}
         <nav className="flex flex-col p-3 gap-0.5 flex-1 overflow-y-auto">
-          <NavItem to="/" icon="🏠" label="Home" onClick={close} />
-          <NavItem to="/my-contests" icon="🎯" label="My Contests" onClick={close} />
-          <NavItem to="/tournaments" icon="🏆" label="Tournaments" onClick={close} />
-          <NavItem to="/profile" icon="👤" label="My Profile" onClick={close} />
+          <NavItem to="/" icon="/Home.png" label="Home" onClick={close} />
+          <NavItem to="/my-contests" icon="/My Contests.png" label="My Contests" onClick={close} />
+          <NavItem to="/tournaments" icon="/Tournaments.png" label="Tournaments" onClick={close} />
+          <NavItem to="/profile" icon="/My Profile.png" label="My Profile" onClick={close} />
+          <NavItem to="/about" icon="/About.png" label="About" onClick={close} />
           {user?.is_admin && (
             <>
               <div className="my-2" style={{ borderTop: '1px solid #1e2d42' }} />
