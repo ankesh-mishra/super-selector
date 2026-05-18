@@ -42,7 +42,7 @@ async def register(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     hashed = pwd_context.hash(body.password)
-    user = User(email=body.email, name=body.name, hashed_password=hashed)
+    user = User(email=body.email, name=body.name, hashed_password=hashed, team_name=body.team_name)
     db.add(user)
     await db.commit()
     await db.refresh(user)

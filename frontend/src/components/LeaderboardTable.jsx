@@ -11,7 +11,7 @@ export default function LeaderboardTable({ entries, currentUserId, showContests,
             <th className="px-4 py-2 text-left text-xs uppercase tracking-wide" style={{ color: '#475569' }}>#</th>
             <th className="px-4 py-2 text-left text-xs uppercase tracking-wide" style={{ color: '#475569' }}>Team</th>
             <th className="px-4 py-2 text-right text-xs uppercase tracking-wide" style={{ color: '#475569' }}>Points</th>
-            {showContests && <th className="px-4 py-2 text-right text-xs uppercase tracking-wide" style={{ color: '#475569' }}>Contests</th>}
+            {showContests && <th className="px-4 py-2 text-right text-xs uppercase tracking-wide" style={{ color: '#475569' }}></th>}
             {getTeamPath && <th className="px-4 py-2 text-right text-xs uppercase tracking-wide" style={{ color: '#475569' }}></th>}
           </tr>
         </thead>
@@ -39,10 +39,13 @@ export default function LeaderboardTable({ entries, currentUserId, showContests,
                     <span className="ml-1.5 text-xs text-emerald-500 font-normal">(you)</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right font-mono text-white">{e.total_points.toFixed(1)}</td>
-                {showContests && (
-                  <td className="px-4 py-2.5 text-right text-sm" style={{ color: '#64748b' }}>{e.contests_entered}</td>
-                )}
+                <td className="px-4 py-2.5 text-right font-mono text-white">
+                  {e.total_points.toFixed(1)}
+                  {showContests && (
+                    <span className="text-xs font-normal ml-1" style={{ color: '#64748b' }}>({e.contests_entered})</span>
+                  )}
+                </td>
+                {showContests && null}
                 {getTeamPath && (
                   <td className="px-4 py-2.5 text-right">
                     {teamPath ? (

@@ -15,6 +15,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     name: str
     password: str
+    team_name: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -92,6 +93,7 @@ class TournamentOut(BaseModel):
     end_date: Optional[datetime] = None
     is_active: bool
     created_at: datetime
+    total_games: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -139,6 +141,43 @@ class PlayerWithTeamOut(PlayerOut):
     team: TeamOut
 
 
+class PlayerTrendingOut(PlayerWithTeamOut):
+    selection_count: int = 0
+
+
+class PlayerGameEventOut(BaseModel):
+    event_type: str
+    base_points: float
+    multiplier_applied: float
+    points_awarded: float
+    game_name: Optional[str] = None
+    game_number: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PlayerContestStatsOut(BaseModel):
+    contest_id: uuid.UUID
+    contest_name: str
+    match_date: datetime
+    is_locked: bool
+    is_completed: bool
+    total_base_points: float
+    events: list[PlayerGameEventOut] = []
+
+
+class PlayerSelectorOut(BaseModel):
+    user_name: str
+    team_name: Optional[str] = None
+    selection_count: int
+
+
+class PlayerDetailOut(PlayerWithTeamOut):
+    total_selections: int = 0
+    contests: list[PlayerContestStatsOut] = []
+    selectors: list[PlayerSelectorOut] = []
+
+
 # ──────────────────────────────────────────────
 # Contests
 # ──────────────────────────────────────────────
@@ -157,6 +196,21 @@ class ContestUpdate(BaseModel):
     registration_cutoff: Optional[datetime] = None
     is_locked: Optional[bool] = None
     is_completed: Optional[bool] = None
+
+
+class ContestCardOut(BaseModel):
+    """Lightweight contest card for the homepage trending section."""
+    id: uuid.UUID
+    name: str
+    match_date: datetime
+    is_locked: bool
+    is_completed: bool
+    participant_count: int = 0
+    tournament_name: Optional[str] = None
+    team_a_name: Optional[str] = None
+    team_b_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 
 class ContestOut(BaseModel):
