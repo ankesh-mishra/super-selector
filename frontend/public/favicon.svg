@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#080d14"/>
+  <text
+    x="16" y="23"
+    text-anchor="middle"
+    font-family="'Inter','Sora',Arial,sans-serif"
+    font-weight="900"
+    font-size="22"
+    fill="#10b981"
+  >S</text>
+</svg>

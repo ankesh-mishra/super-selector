@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
   const { loginWithToken } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ email: '', password: '', name: '' })
-  const [isRegister, setIsRegister] = useState(false)
+  const [searchParams] = useSearchParams()
+  const [form, setForm] = useState({ email: '', password: '', name: '', team_name: '' })
+  const [isRegister, setIsRegister] = useState(searchParams.get('register') === '1')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -18,7 +19,7 @@ export default function LoginPage() {
     try {
       let data
       if (isRegister) {
-        ;({ data } = await authApi.register({ email: form.email, password: form.password, name: form.name }))
+        ;({ data } = await authApi.register({ email: form.email, password: form.password, name: form.name, team_name: form.team_name || undefined }))
       } else {
         ;({ data } = await authApi.login({ email: form.email, password: form.password }))
       }
@@ -63,14 +64,23 @@ export default function LoginPage() {
 
         <form onSubmit={handleEmailSubmit} className="flex flex-col gap-3">
           {isRegister && (
-            <input
-              className={inputCls}
-              style={{ background: '#1a2236', border: '1px solid #1e2d42' }}
-              placeholder="Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
+            <>
+              <input
+                className={inputCls}
+                style={{ background: '#1a2236', border: '1px solid #1e2d42' }}
+                placeholder="Full Name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+              <input
+                className={inputCls}
+                style={{ background: '#1a2236', border: '1px solid #1e2d42' }}
+                placeholder="Fantasy Team Name"
+                value={form.team_name}
+                onChange={(e) => setForm({ ...form, team_name: e.target.value })}
+              />
+            </>
           )}
           <input
             type="email"
@@ -96,7 +106,7 @@ export default function LoginPage() {
             className="font-semibold py-3 rounded-xl transition disabled:opacity-50 hover:opacity-90 mt-1"
             style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }}
           >
-            {loading ? '…' : isRegister ? 'Register' : 'Login'}
+            {loading ? '…' : isRegister ? 'Create Account' : 'Login'}
           </button>
           <button
             type="button"

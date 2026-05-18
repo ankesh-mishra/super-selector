@@ -2,12 +2,12 @@ import uuid
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Tournament, TournamentTeam
+from app.models import Contest, ContestGame, Tournament, TournamentTeam
 from app.schemas import TournamentDetailOut, TournamentOut
 
 router = APIRouter()
@@ -25,7 +25,27 @@ async def list_tournaments(
     if active is not None:
         q = q.where(Tournament.is_active == active)
     result = await db.execute(q)
-    return result.scalars().all()
+    tournaments = result.scalars().all()
+
+    if not tournaments:
+        return []
+
+    # Count total ContestGame records per tournament
+    t_ids = [t.id for t in tournaments]
+    count_result = await db.execute(
+        select(Contest.tournament_id, func.count(ContestGame.id).label("cnt"))
+        .join(ContestGame, ContestGame.contest_id == Contest.id, isouter=True)
+        .where(Contest.tournament_id.in_(t_ids))
+        .group_by(Contest.tournament_id)
+    )
+    count_map = {row.tournament_id: int(row.cnt) for row in count_result.all()}
+
+    out = []
+    for t in tournaments:
+        t_out = TournamentOut.model_validate(t)
+        t_out.total_games = count_map.get(t.id, 0)
+        out.append(t_out)
+    return out
 
 
 @router.get("/{tournament_id}", response_model=TournamentDetailOut)

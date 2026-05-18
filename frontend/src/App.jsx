@@ -15,6 +15,8 @@ import TournamentLeaderboardPage from './pages/TournamentLeaderboardPage'
 import UserTeamViewPage from './pages/UserTeamViewPage'
 import AdminPanel from './pages/AdminPanel'
 import AboutPage from './pages/AboutPage'
+import PlayersPage from './pages/PlayersPage'
+import PlayerDetailPage from './pages/PlayerDetailPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -38,7 +40,7 @@ function AppRoutes() {
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/tournaments" element={<ProtectedRoute><TournamentsPage /></ProtectedRoute>} />
           <Route path="/tournaments/:id" element={<ProtectedRoute><TournamentDetailPage /></ProtectedRoute>} />
           <Route path="/my-contests" element={<ProtectedRoute><MyContestsPage /></ProtectedRoute>} />
@@ -51,6 +53,8 @@ function AppRoutes() {
           <Route path="/tournaments/:id/leaderboard" element={<ProtectedRoute><TournamentLeaderboardPage /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/players" element={<PlayersPage />} />
+          <Route path="/players/:id" element={<PlayerDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

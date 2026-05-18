@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_current_user
 from app.models import UserTeam, User, Contest, Tournament
 from app.schemas import LeaderboardEntry, OverallLeaderboardEntry
 
@@ -46,7 +46,7 @@ async def contest_leaderboard(
 async def tournament_leaderboard(
     tournament_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_optional_current_user)],
 ):
     """Cumulative leaderboard — sum of points across all contests in a tournament."""
     tournament = await db.get(Tournament, tournament_id)

@@ -18,6 +18,8 @@ export const teamsApi = {
 // ── Players ───────────────────────────────────────────────────────────────────
 export const playersApi = {
   list: (params) => client.get('/api/players', { params }),
+  trending: () => client.get('/api/players/trending'),
+  stats: (id) => client.get(`/api/players/${id}/stats`),
 }
 
 // ── Tournaments ───────────────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ export const tournamentsApi = {
 export const contestsApi = {
   list: () => client.get('/api/contests'),
   get: (id) => client.get(`/api/contests/${id}`),
+  trending: () => client.get('/api/contests/trending'),
 }
 
 // ── User Teams ────────────────────────────────────────────────────────────────

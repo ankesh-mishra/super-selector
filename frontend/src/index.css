@@ -8,3 +8,13 @@
   * { border-color: var(--border); }
   body { @apply antialiased bg-background text-foreground font-sans; }
 }
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
