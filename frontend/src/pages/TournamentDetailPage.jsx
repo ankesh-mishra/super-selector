@@ -1,11 +1,20 @@
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { tournamentsApi } from '../api/endpoints'
+import TeamBadge from '../components/TeamBadge'
+import { getTeamCaptain } from '../utils/teamLogos'
 
-function statusChip(contest) {
-  if (contest.is_completed) return { label: 'Completed', cls: 'badge-completed' }
-  if (contest.is_locked)    return { label: '🔴 Live',   cls: 'badge-live' }
-  return                           { label: 'Open',      cls: 'badge-open' }
+function useCountdown(targetDate) {
+  const [diff, setDiff] = useState(() => Math.max(0, new Date(targetDate) - Date.now()))
+  useEffect(() => {
+    const id = setInterval(() => setDiff(Math.max(0, new Date(targetDate) - Date.now())), 1000)
+    return () => clearInterval(id)
+  }, [targetDate])
+  if (!targetDate || diff <= 0) return null
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
 function sortContests(contests) {
@@ -17,6 +26,105 @@ function sortContests(contests) {
     }
     return order(a) - order(b) || new Date(a.match_date) - new Date(b.match_date)
   })
+}
+
+function ContestCard({ c }) {
+  const countdown = useCountdown(c.match_date)
+  const captainSrcA = getTeamCaptain(c.team_a?.name)
+  const captainSrcB = getTeamCaptain(c.team_b?.name)
+  const isLive = c.is_locked && !c.is_completed
+  const isDone = c.is_completed
+
+  let timeVal, timeColor
+  if (isDone)       { timeVal = 'Ended';    timeColor = '#64748b' }
+  else if (isLive)  { timeVal = 'Live';     timeColor = '#f87171' }
+  else if (countdown){ timeVal = countdown; timeColor = '#34d399' }
+  else               { timeVal = new Date(c.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); timeColor = '#94a3b8' }
+
+  return (
+    <Link
+      to={`/contests/${c.id}`}
+      className="rounded-xl overflow-hidden flex flex-col transition-all duration-200 hover:brightness-110"
+      style={{
+        background: '#080d14',
+        border: `1px solid ${isLive ? 'rgba(239,68,68,.45)' : isDone ? 'rgba(100,116,139,.2)' : 'rgba(16,185,129,.25)'}`,
+        boxShadow: isLive ? '0 0 16px rgba(239,68,68,.08)' : 'none',
+      }}
+    >
+      {/* Cinematic image area */}
+      <div className="relative h-28">
+        {/* Left captain */}
+        <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+          {captainSrcA && <img src={captainSrcA} alt="" className="w-full h-full object-cover object-top" />}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(90deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+        {/* Right captain */}
+        <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+          {captainSrcB && <img src={captainSrcB} alt="" className="w-full h-full object-cover object-top" />}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(270deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+
+        {/* Top bar */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-2.5 z-10">
+          <span className="inline-flex items-center gap-0.5 text-[0.55rem] font-semibold px-1.5 py-0.5 rounded-full"
+            style={isLive
+              ? { background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.35)', color: '#f87171' }
+              : isDone
+              ? { background: 'rgba(100,116,139,.15)', border: '1px solid rgba(100,116,139,.25)', color: '#64748b' }
+              : { background: 'rgba(16,185,129,.12)', border: '1px solid rgba(16,185,129,.35)', color: '#34d399' }}>
+            <svg className="w-1.5 h-1.5 fill-current" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" /></svg>
+            {isDone ? 'Ended' : isLive ? 'Live' : 'Open'}
+          </span>
+          {c.match_number != null && (
+            <span className="text-[0.55rem] px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,0,0,.55)', color: '#64748b', backdropFilter: 'blur(6px)' }}>
+              Match #{c.match_number}
+            </span>
+          )}
+        </div>
+
+        {/* Center VS */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="absolute top-0 bottom-0 w-px"
+            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(16,185,129,.5) 50%, transparent 100%)' }} />
+          <span className="relative text-[0.6rem] font-black px-1.5 py-0.5 rounded-lg"
+            style={{ background: 'rgba(7,26,16,.85)', color: '#fff', border: '1px solid rgba(16,185,129,.5)', backdropFilter: 'blur(8px)', boxShadow: '0 0 10px rgba(16,185,129,.5)' }}>
+            VS
+          </span>
+        </div>
+
+        {/* Bottom team names */}
+        <div className="absolute bottom-0 left-0 right-0 px-3 pt-6 pb-2 z-10"
+          style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(8,13,20,.97) 100%)' }}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <TeamBadge teamName={c.team_a?.name} size="xs" className="ring-1 ring-white shrink-0" />
+              <p className="text-[0.6rem] font-bold text-white leading-tight truncate">{c.team_a?.name}</p>
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0 flex-row-reverse">
+              <TeamBadge teamName={c.team_b?.name} size="xs" className="ring-1 ring-white shrink-0" />
+              <p className="text-[0.6rem] font-bold text-white leading-tight truncate">{c.team_b?.name}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Info strip */}
+      <div className="flex items-center justify-between px-3 py-1.5"
+        style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div className="flex items-center gap-1">
+          <img src="/card-icons/starts%20in.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+          <span className="text-[0.6rem] font-bold" style={{ color: timeColor }}>{timeVal}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <img src="/card-icons/prize%20pool.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+          <span className="text-[0.6rem] font-bold text-white">{c.prize || 'Winner Badge'}</span>
+        </div>
+      </div>
+    </Link>
+  )
 }
 
 export default function TournamentDetailPage() {
@@ -102,25 +210,7 @@ export default function TournamentDetailPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {sorted.map((c) => {
-              const { label, cls } = statusChip(c)
-              return (
-                <Link
-                  key={c.id}
-                  to={`/contests/${c.id}`}
-                  className="flex items-center justify-between rounded-xl px-4 py-3 transition hover:brightness-110"
-                  style={{ background: '#0f1623', border: '1px solid #1e2d42' }}
-                >
-                  <div>
-                    <p className="font-semibold text-sm text-white">{c.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
-                      {new Date(c.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>
-                </Link>
-              )
-            })}
+            {sorted.map((c) => <ContestCard key={c.id} c={c} />)}
           </div>
         )}
       </div>

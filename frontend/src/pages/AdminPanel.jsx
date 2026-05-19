@@ -365,10 +365,36 @@ function PlayersTab() {
   )
 }
 
+// ─── Contest Prize Editor ─────────────────────────────────────────────────────
+function ContestPrizeEditor({ contests, qc, setMsg }) {
+  const [editPrizeId, setEditPrizeId] = useState('')
+  const [editPrizeVal, setEditPrizeVal] = useState('Winner Badge')
+  const editPrize = useMutation({
+    mutationFn: () => adminApi.updateContest(editPrizeId, { prize: editPrizeVal }),
+    onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Prize updated!') },
+  })
+  return (
+    <>
+      <Select label="Contest" value={editPrizeId} onChange={(e) => {
+        setEditPrizeId(e.target.value)
+        const c = (contests || []).find((x) => x.id === e.target.value)
+        setEditPrizeVal(c?.prize || 'Winner Badge')
+      }}>
+        <option value="">— select contest —</option>
+        {(contests || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
+      {editPrizeId && (
+        <Input label="Prize" value={editPrizeVal} onChange={(e) => setEditPrizeVal(e.target.value)} />
+      )}
+      <Btn disabled={!editPrizeId || !editPrizeVal.trim() || editPrize.isPending} onClick={() => editPrize.mutate()}>Save Prize</Btn>
+    </>
+  )
+}
+
 // ─── Contests Tab ─────────────────────────────────────────────────────────────
 function ContestsTab() {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '' })
+  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '', prize: 'Winner Badge' })
   const [lockId, setLockId] = useState('')
   const [lockTournamentId, setLockTournamentId] = useState('')
   const [completeId, setCompleteId] = useState('')
@@ -435,6 +461,8 @@ function ContestsTab() {
         onChange={(e) => setForm({ ...form, match_date: e.target.value })} />
       <Input label="Registration cutoff" type="datetime-local" value={form.registration_cutoff}
         onChange={(e) => setForm({ ...form, registration_cutoff: e.target.value })} />
+      <Input label="Prize" value={form.prize}
+        onChange={(e) => setForm({ ...form, prize: e.target.value })} />
       <Btn disabled={!canCreate || create.isPending} onClick={() => create.mutate()}>Create Contest</Btn>
 
       <hr className="my-2" />
@@ -483,6 +511,10 @@ function ContestsTab() {
         )
       })()}
       <Btn disabled={!completeId || markComplete.isPending} onClick={() => markComplete.mutate(completeId)}>Mark as Completed</Btn>
+
+      <hr className="my-2" />
+      <p className="text-xs font-semibold text-gray-500 uppercase">Edit contest prize</p>
+      <ContestPrizeEditor contests={contests} qc={qc} setMsg={setMsg} />
       {msg && <p className="text-sm text-primary">{msg}</p>}
     </div>
   )

@@ -43,7 +43,7 @@ export default function ContestLeaderboardPage() {
       </div>
       {isLoading
         ? <p className="text-center py-8 text-sm" style={{ color: '#64748b' }}>Loading…</p>
-        : <LeaderboardTable entries={entries} currentUserId={user?.id} getTeamPath={getTeamPath} />
+        : <LeaderboardTable entries={entries} currentUserId={user?.id} getTeamPath={getTeamPath} prize={contest?.prize} />
       }
     </div>
   )

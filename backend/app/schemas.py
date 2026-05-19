@@ -99,7 +99,7 @@ class TournamentOut(BaseModel):
 
 
 class TournamentDetailOut(TournamentOut):
-    contests: list["ContestOut"] = []
+    contests: list["ContestBriefOut"] = []
     teams: list["TeamOut"] = []
 
 
@@ -188,6 +188,7 @@ class ContestCreate(BaseModel):
     team_b_id: uuid.UUID
     match_date: datetime
     registration_cutoff: datetime
+    prize: str = 'Winner Badge'
 
 
 class ContestUpdate(BaseModel):
@@ -196,6 +197,7 @@ class ContestUpdate(BaseModel):
     registration_cutoff: Optional[datetime] = None
     is_locked: Optional[bool] = None
     is_completed: Optional[bool] = None
+    prize: Optional[str] = None
 
 
 class ContestCardOut(BaseModel):
@@ -209,6 +211,9 @@ class ContestCardOut(BaseModel):
     tournament_name: Optional[str] = None
     team_a_name: Optional[str] = None
     team_b_name: Optional[str] = None
+    team_a_captain_name: Optional[str] = None
+    team_b_captain_name: Optional[str] = None
+    prize: str = 'Winner Badge'
 
     model_config = {"from_attributes": True}
 
@@ -224,6 +229,7 @@ class ContestOut(BaseModel):
     registration_cutoff: datetime
     is_locked: bool
     is_completed: bool
+    prize: str = 'Winner Badge'
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -240,6 +246,7 @@ class ContestBriefOut(BaseModel):
     match_date: datetime
     is_locked: bool
     is_completed: bool
+    prize: str = 'Winner Badge'
     team_a: TeamOut
     team_b: TeamOut
 
@@ -251,6 +258,8 @@ class ContestDetailOut(ContestOut):
     team_b: TeamOut
     tournament: Optional["TournamentOut"] = None
     tournament_name: Optional[str] = None
+    team_a_captain_name: Optional[str] = None
+    team_b_captain_name: Optional[str] = None
     games: list["ContestGameOut"] = Field(default=[], validation_alias="contest_games")
 
     model_config = {"from_attributes": True, "populate_by_name": True}

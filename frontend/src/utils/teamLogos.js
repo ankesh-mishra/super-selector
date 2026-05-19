@@ -52,3 +52,9 @@ export function getTeamColor(teamName) {
   for (let i = 0; i < teamName.length; i++) hash = (hash * 31 + teamName.charCodeAt(i)) >>> 0
   return PALETTE[hash % PALETTE.length]
 }
+
+/** Returns the captain portrait URL for a team name, or null if not mapped. */
+export function getTeamCaptain(teamName) {
+  if (!teamName) return null
+  return `/team-captains/${encodeURIComponent(teamName)}.webp`
+}

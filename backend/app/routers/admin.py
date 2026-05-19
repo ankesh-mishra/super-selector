@@ -276,7 +276,7 @@ async def update_contest(
     contest = result.scalar_one_or_none()
     if contest is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
-    allowed = {"name", "match_date", "registration_cutoff", "is_locked", "is_completed"}
+    allowed = {"name", "match_date", "registration_cutoff", "is_locked", "is_completed", "prize"}
     for key, value in body.items():
         if key in allowed:
             setattr(contest, key, value)
