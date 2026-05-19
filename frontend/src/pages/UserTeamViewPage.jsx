@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { userTeamsApi, contestsApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import TeamBadge from '../components/TeamBadge'
@@ -18,6 +18,7 @@ export default function UserTeamViewPage() {
     queryFn: () => userTeamsApi.getByUser(contestId, userId).then((r) => r.data),
   })
 
+  const navigate = useNavigate()
   const isOwn = currentUser?.id === userId
 
   if (isLoading) return <p className="text-center py-12 text-sm" style={{ color: '#64748b' }}>Loading…</p>
@@ -78,11 +79,12 @@ export default function UserTeamViewPage() {
           .map((utp) => (
             <div
               key={utp.id}
-              className="rounded-xl p-3 flex items-center justify-between"
+              className="rounded-xl p-3 flex items-center justify-between cursor-pointer"
               style={{
                 background: '#0f1623',
                 border: `1px solid ${utp.is_captain ? 'rgba(16,185,129,.5)' : utp.is_vice_captain ? 'rgba(59,130,246,.4)' : '#1e2d42'}`,
               }}
+              onClick={() => navigate(`/players/${utp.player.id}`)}
             >
               <div className="flex items-center gap-2">
                 {utp.is_captain && (

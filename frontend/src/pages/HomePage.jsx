@@ -4,6 +4,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { contestsApi, myContestsApi, playersApi, tournamentsApi, leaderboardApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import LeaderboardTable from '../components/LeaderboardTable'
+import TeamBadge from '../components/TeamBadge'
+import CaptainBadge from '../components/CaptainBadge'
+import { getTournamentLogo } from '../utils/tournamentLogos'
+import { getTeamCaptain } from '../utils/teamLogos'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +35,19 @@ function ChevronRight() {
   )
 }
 
+function useCountdown(targetDate) {
+  const [diff, setDiff] = useState(() => Math.max(0, new Date(targetDate) - Date.now()))
+  useEffect(() => {
+    const id = setInterval(() => setDiff(Math.max(0, new Date(targetDate) - Date.now())), 1000)
+    return () => clearInterval(id)
+  }, [targetDate])
+  if (!targetDate || diff <= 0) return null
+  const h = Math.floor(diff / 3600000)
+  const m = Math.floor((diff % 3600000) / 60000)
+  const s = Math.floor((diff % 60000) / 1000)
+  return `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`
+}
+
 const CARD_STYLE = {
   background: 'linear-gradient(#111827,#111827) padding-box, linear-gradient(135deg,rgba(16,185,129,.5),rgba(6,182,212,.3)) border-box',
   border: '1px solid transparent',
@@ -51,73 +68,305 @@ function SectionHeader({ title, linkTo, linkLabel }) {
   )
 }
 
+// ── Featured Contest ──────────────────────────────────────────────────────────
+
+function FeaturedContest({ contests, user }) {
+  const navigate = useNavigate()
+  const featured = [...contests]
+    .filter((c) => !c.is_locked)
+    .sort((a, b) => (b.participant_count || 0) - (a.participant_count || 0))[0]
+  const countdown = useCountdown(featured?.match_date)
+
+  // Compact version for the info row: "2h 30m" / "45m"
+  const compactCountdown = (() => {
+    if (!countdown) return null
+    const [hPart, mPart] = countdown.split(' ')
+    const h = parseInt(hPart), m = parseInt(mPart)
+    return h > 0 ? `${h}h ${m}m` : `${m}m`
+  })()
+
+  if (!featured) return null
+
+  const tournamentLogo = getTournamentLogo(featured.tournament_name)
+  const captainSrcA = getTeamCaptain(featured.team_a_name)
+  const captainSrcB = getTeamCaptain(featured.team_b_name)
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{
+        background: '#080d14',
+        border: '1px solid rgba(16,185,129,.35)',
+        boxShadow: '0 0 40px rgba(16,185,129,.12)',
+      }}
+    >
+      {/* ── Cinematic image area ── */}
+      <div className="relative h-52">
+        {/* Left captain */}
+        <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+          {captainSrcA && (
+            <img src={captainSrcA} alt={featured.team_a_name}
+              className="w-full h-full object-cover object-top" />
+          )}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(90deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+
+        {/* Right captain */}
+        <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+          {captainSrcB && (
+            <img src={captainSrcB} alt={featured.team_b_name}
+              className="w-full h-full object-cover object-top" />
+          )}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(270deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+
+        {/* Top bar overlay */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-3 z-10">
+          <div className="flex items-center gap-2">
+            {tournamentLogo && (
+              <img src={tournamentLogo} alt="" className="w-4 h-4 rounded object-contain shrink-0" />
+            )}
+            <span
+              className="text-[0.6rem] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,0,0,.55)', color: '#34d399', border: '1px solid rgba(16,185,129,.45)', backdropFilter: 'blur(6px)' }}
+            >
+              ✦ Featured
+            </span>
+            {featured.is_locked && (
+              <span className="text-[0.6rem] font-semibold text-red-400 px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(0,0,0,.55)' }}>🔴 Live</span>
+            )}
+          </div>
+          {countdown && !featured.is_locked && (
+            <span className="text-[0.65rem] font-semibold tabular-nums px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,0,0,.55)', color: '#94a3b8', backdropFilter: 'blur(6px)' }}>
+              ⏱ {countdown}
+            </span>
+          )}
+        </div>
+
+        {/* Center VS */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="absolute top-0 bottom-0 w-px"
+            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(16,185,129,.6) 50%, transparent 100%)' }} />
+          <span className="relative text-lg font-black px-3 py-1 rounded-xl"
+            style={{
+              background: 'rgba(7,26,16,.85)',
+              color: '#fff',
+              border: '1px solid rgba(16,185,129,.55)',
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 0 24px rgba(16,185,129,.55), 0 0 48px rgba(16,185,129,.2)',
+            }}>
+            VS
+          </span>
+        </div>
+
+        {/* Bottom team info overlay */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pt-10 pb-3 z-10"
+          style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(8,13,20,.97) 100%)' }}>
+          <div className="flex items-end justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <TeamBadge teamName={featured.team_a_name} size="sm" className="ring-2 ring-white shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white leading-tight truncate">{featured.team_a_name}</p>
+                {featured.team_a_captain_name && (
+                  <p className="text-[0.6rem] truncate" style={{ color: '#34d399' }}>Capt: {featured.team_a_captain_name}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 min-w-0 flex-row-reverse">
+              <TeamBadge teamName={featured.team_b_name} size="sm" className="ring-2 ring-white shrink-0" />
+              <div className="min-w-0 text-right">
+                <p className="text-xs font-bold text-white leading-tight truncate">{featured.team_b_name}</p>
+                {featured.team_b_captain_name && (
+                  <p className="text-[0.6rem] truncate" style={{ color: '#34d399' }}>Capt: {featured.team_b_captain_name}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Info row ── */}
+      <div className="flex items-center justify-around px-4 py-2"
+        style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div className="flex items-center gap-1.5">
+          <img src="/card-icons/participants.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+          <div className="flex flex-col">
+            <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Players</span>
+            <span className="text-[0.65rem] font-bold leading-tight text-white">
+              {featured.participant_count > 0 ? `${featured.participant_count}` : '—'}
+            </span>
+          </div>
+        </div>
+        {!featured.is_locked && compactCountdown ? (
+          <div className="flex items-center gap-1.5">
+            <img src="/card-icons/starts%20in.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Starts in</span>
+              <span className="text-[0.65rem] font-bold leading-tight tabular-nums" style={{ color: '#34d399' }}>{compactCountdown}</span>
+            </div>
+          </div>
+        ) : featured.is_locked ? (
+          <div className="flex items-center gap-1.5">
+            <img src="/card-icons/starts%20in.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Status</span>
+              <span className="text-[0.65rem] font-bold leading-tight text-red-400">Live Now</span>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-1.5">
+          <img src="/card-icons/entry%20fee.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+          <div className="flex flex-col">
+            <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Entry</span>
+            <span className="text-[0.65rem] font-bold leading-tight" style={{ color: '#34d399' }}>Free</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <img src="/card-icons/prize%20pool.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+          <div className="flex flex-col">
+            <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Prize</span>
+            <span className="text-[0.65rem] font-bold leading-tight text-white">{featured.prize || 'Winner Badge'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CTA ── */}
+      <div className="px-4 pb-4 pt-1">
+        <button
+          onClick={() => user ? navigate(`/contests/${featured.id}`) : navigate('/login?register=1')}
+          className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition active:scale-[.98] flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 4px 20px rgba(16,185,129,.4)' }}
+        >
+          <span>⚡</span>
+          {user ? 'Enter Contest' : 'Register & Join'}
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Trending Contests ─────────────────────────────────────────────────────────
 
-function TrendingContests({ contests, user }) {
+function TrendingCard({ c, user }) {
   const navigate = useNavigate()
+  const rawCountdown = useCountdown(c.match_date)
+  const captainSrcA = getTeamCaptain(c.team_a_name)
+  const captainSrcB = getTeamCaptain(c.team_b_name)
+  const { label, cls } = statusChip(c)
 
+  // Compact: "2h 30m" or "45m" or "Live"
+  let timeVal, timeColor
+  if (c.is_locked) {
+    timeVal = 'Live'; timeColor = '#f87171'
+  } else if (rawCountdown) {
+    const [hPart, mPart] = rawCountdown.split(' ')
+    const h = parseInt(hPart), m = parseInt(mPart)
+    timeVal = h > 0 ? `${h}h ${m}m` : `${m}m`; timeColor = '#34d399'
+  } else {
+    timeVal = new Date(c.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    timeColor = '#94a3b8'
+  }
+
+  return (
+    <div
+      onClick={() => user ? navigate(`/contests/${c.id}`) : navigate('/login?register=1')}
+      className="cursor-pointer flex-none w-44 rounded-xl overflow-hidden snap-start flex flex-col transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)]"
+      style={{ background: '#080d14', border: '1px solid rgba(16,185,129,.25)', boxShadow: '0 0 20px rgba(16,185,129,.06)' }}
+    >
+      {/* ── Cinematic image area ── */}
+      <div className="relative h-28">
+        {/* Left captain */}
+        <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+          {captainSrcA && <img src={captainSrcA} alt="" className="w-full h-full object-cover object-top" />}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(90deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+        {/* Right captain */}
+        <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+          {captainSrcB && <img src={captainSrcB} alt="" className="w-full h-full object-cover object-top" />}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(270deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
+        </div>
+
+        {/* Top bar */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 pt-2 z-10">
+          <span className={`text-[0.55rem] font-semibold px-1.5 py-0.5 rounded-full ${cls}`}>{label}</span>
+          {c.tournament_name && (
+            <span className="text-[0.5rem] truncate max-w-[80px] px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,0,0,.55)', color: '#64748b', backdropFilter: 'blur(6px)' }}>
+              {c.tournament_name}
+            </span>
+          )}
+        </div>
+
+        {/* Center VS */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="absolute top-0 bottom-0 w-px"
+            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(16,185,129,.5) 50%, transparent 100%)' }} />
+          <span className="relative text-[0.6rem] font-black px-1.5 py-0.5 rounded-lg"
+            style={{ background: 'rgba(7,26,16,.85)', color: '#fff', border: '1px solid rgba(16,185,129,.5)', backdropFilter: 'blur(8px)', boxShadow: '0 0 10px rgba(16,185,129,.5)' }}>
+            VS
+          </span>
+        </div>
+
+        {/* Bottom team names */}
+        <div className="absolute bottom-0 left-0 right-0 px-2 pt-6 pb-1.5 z-10"
+          style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(8,13,20,.97) 100%)' }}>
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 min-w-0">
+              <TeamBadge teamName={c.team_a_name} size="xs" className="ring-1 ring-white shrink-0" />
+              <p className="text-[0.55rem] font-bold text-white leading-tight truncate">{c.team_a_name}</p>
+            </div>
+            <div className="flex items-center gap-1 min-w-0 flex-row-reverse">
+              <TeamBadge teamName={c.team_b_name} size="xs" className="ring-1 ring-white shrink-0" />
+              <p className="text-[0.55rem] font-bold text-white leading-tight truncate">{c.team_b_name}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Info row: icon + value only ── */}
+      <div className="flex items-center justify-between px-2.5 py-1.5"
+        style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div className="flex items-center gap-1">
+          <img src="/card-icons/participants.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+          <span className="text-[0.6rem] font-bold text-white">
+            {c.participant_count > 0 ? c.participant_count : '—'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <img src="/card-icons/starts%20in.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
+          <span className="text-[0.6rem] font-bold" style={{ color: timeColor }}>{timeVal}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TrendingContests({ contests, user }) {
   if (contests.length === 0) {
     return (
       <p className="text-sm text-center py-6" style={{ color: '#475569' }}>No open contests at the moment.</p>
     )
   }
-
   return (
     <div className="-mx-4 overflow-x-hidden">
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 scroll-pl-4 snap-x snap-mandatory">
-      {contests.map((c) => {
-        const { label, cls } = statusChip(c)
-        const handleJoin = () =>
-          user ? navigate(`/contests/${c.id}`) : navigate('/login?register=1')
-
-        return (
-          <div
-            key={c.id}
-            className="flex-none w-44 rounded-xl p-3 snap-start flex flex-col transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)] hover:brightness-[1.1]"
-            style={CARD_STYLE}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full ${cls}`}>{label}</span>
-              <span className="text-[0.65rem]" style={{ color: '#475569' }}>
-                {new Date(c.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </span>
-            </div>
-
-            {(c.team_a_name && c.team_b_name) ? (
-              <>
-                <p className="text-xs font-semibold leading-tight text-white truncate">{c.team_a_name}</p>
-                <p className="text-xs font-semibold leading-tight text-white truncate">vs {c.team_b_name}</p>
-              </>
-            ) : (
-              <p className="text-xs font-semibold leading-tight text-white truncate">{c.name}</p>
-            )}
-
-            {c.tournament_name && (
-              <p className="text-[0.6rem] truncate" style={{ color: '#64748b' }}>{c.tournament_name}</p>
-            )}
-
-            <div className="mt-auto pt-2">
-              <p className="text-[0.6rem] mb-1" style={{ color: '#475569' }}>
-                {c.participant_count > 0 ? `${c.participant_count} joined` : 'Be the first!'}
-              </p>
-              <button
-                onClick={handleJoin}
-                className="w-full text-[0.65rem] font-semibold py-1.5 rounded-lg transition hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }}
-              >
-                {user ? 'Join →' : 'Register & Join →'}
-              </button>
-            </div>
-          </div>
-        )
-      })}      </div>    </div>
+        {contests.map((c) => <TrendingCard key={c.id} c={c} user={user} />)}
+      </div>
+    </div>
   )
 }
 
 // ── My Contests ───────────────────────────────────────────────────────────────
 
 function MyContests({ myContests }) {
-  const activeContests = sortActive(myContests)
+  const activeContests = sortActive(myContests).slice(0, 2)
 
   if (activeContests.length === 0) {
     return (
@@ -135,52 +384,58 @@ function MyContests({ myContests }) {
   }
 
   return (
-    <div className="-mx-4 overflow-x-hidden">
-      <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 scroll-pl-4 snap-x snap-mandatory">
+    <div className="flex flex-col gap-1.5">
       {activeContests.map((mc) => {
-        const { label, cls } = statusChip(mc.contest)
+        const isLive = mc.contest.is_locked
         return (
           <Link
             key={mc.id}
             to={`/contests/${mc.contest.id}`}
-            className="flex-none w-44 rounded-xl p-3 snap-start flex flex-col transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)] hover:brightness-[1.1]"
-            style={CARD_STYLE}
+            className="rounded-xl px-3 py-2.5 flex items-center gap-3 transition-all duration-200 hover:brightness-110"
+            style={{
+              background: '#0f1623',
+              border: `1px solid ${isLive ? 'rgba(239,68,68,.45)' : 'rgba(16,185,129,.22)'}`,
+              boxShadow: isLive ? '0 0 14px rgba(239,68,68,.08)' : 'none',
+            }}
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full ${cls}`}>{label}</span>
-              <span className="text-[0.65rem]" style={{ color: '#475569' }}>
-                {new Date(mc.contest.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </span>
-            </div>
-            {(mc.contest.team_a?.name && mc.contest.team_b?.name) ? (
-              <>
-                <p className="text-xs font-semibold leading-tight truncate text-white">{mc.contest.team_a.name}</p>
-                <p className="text-xs font-semibold leading-tight truncate text-white">vs {mc.contest.team_b.name}</p>
-              </>
-            ) : (
-              <p className="text-xs font-semibold leading-tight truncate text-white">{mc.contest.name}</p>
-            )}
-            {mc.contest.tournament?.name && (
-              <p className="text-[0.6rem] truncate" style={{ color: '#64748b' }}>
-                {mc.contest.match_number != null ? `Match #${mc.contest.match_number} · ` : ''}{mc.contest.tournament.name}
+            {/* Status badge */}
+            <span className="shrink-0 inline-flex items-center gap-0.5 text-[0.55rem] font-semibold px-1.5 py-0.5 rounded-full"
+              style={isLive
+                ? { background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', color: '#f87171' }
+                : { background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.3)', color: '#34d399' }}>
+              <svg className="w-1.5 h-1.5 fill-current" viewBox="0 0 6 6"><circle cx="3" cy="3" r="3" /></svg>
+              {isLive ? 'Live' : 'Open'}
+            </span>
+
+            {/* Match info */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white leading-tight truncate">
+                {(mc.contest.team_a?.name && mc.contest.team_b?.name)
+                  ? `${mc.contest.team_a.name} vs ${mc.contest.team_b.name}`
+                  : mc.contest.name}
               </p>
-            )}
-            <div className="mt-auto pt-2 flex items-center justify-between" style={{ borderTop: '1px solid #1e293b', marginTop: '8px' }}>
-              <div className="flex items-baseline gap-0.5">
-                <span className="text-gradient text-base font-black">{mc.total_points}</span>
+              {mc.contest.tournament?.name && (
+                <p className="text-[0.6rem] truncate leading-tight mt-0.5" style={{ color: '#475569' }}>
+                  {mc.contest.match_number != null ? `Match #${mc.contest.match_number} · ` : ''}{mc.contest.tournament.name}
+                </p>
+              )}
+            </div>
+
+            {/* Points + rank */}
+            <div className="shrink-0 text-right">
+              <div className="flex items-baseline gap-0.5 justify-end">
+                <span className="text-sm font-black text-gradient">{mc.total_points}</span>
                 <span className="text-[0.6rem]" style={{ color: '#64748b' }}>pts</span>
               </div>
-              {mc.contest.is_locked && (
-                <span className="text-[0.65rem]" style={{ color: '#64748b' }}>
-                  #{mc.rank != null ? mc.rank : '--'}
-                  <span style={{ color: '#334155' }}>/{mc.total_participants}</span>
-                </span>
+              {isLive && mc.rank != null && (
+                <p className="text-[0.6rem] leading-tight" style={{ color: '#64748b' }}>
+                  #{mc.rank}<span style={{ color: '#334155' }}>/{mc.total_participants}</span>
+                </p>
               )}
             </div>
           </Link>
         )
       })}
-      </div>
     </div>
   )
 }
@@ -213,6 +468,57 @@ function TrendingPlayers({ players }) {
         </Link>
       ))}
       </div>
+    </div>
+  )
+}
+
+// ── Leaderboard Podium ───────────────────────────────────────────────────────
+
+function Podium({ entries }) {
+  if (entries.length < 2) return null
+  const [first, second, third] = [entries[0], entries[1], entries[2]]
+  const visual = [
+    { e: second, rank: 2, avatarCls: 'w-11 h-11 text-sm', podiumCls: 'h-10' },
+    { e: first,  rank: 1, avatarCls: 'w-14 h-14 text-base', podiumCls: 'h-16' },
+    { e: third,  rank: 3, avatarCls: 'w-9 h-9 text-xs',   podiumCls: 'h-7'  },
+  ].filter((p) => p.e)
+
+  const RS = {
+    1: { ring: 'rgba(250,204,21,.6)',  bg: 'rgba(250,204,21,.12)', badge: '#fbbf24', glow: '0 0 16px rgba(250,204,21,.25)' },
+    2: { ring: 'rgba(148,163,184,.4)', bg: 'rgba(148,163,184,.08)', badge: '#94a3b8', glow: 'none' },
+    3: { ring: 'rgba(234,88,12,.4)',   bg: 'rgba(234,88,12,.08)',   badge: '#f97316', glow: 'none' },
+  }
+
+  return (
+    <div className="flex items-end justify-center gap-2 mb-3 px-2">
+      {visual.map(({ e, rank, avatarCls, podiumCls }) => {
+        const s = RS[rank]
+        const name = e.team_name || e.user_name
+        return (
+          <div key={e.user_id} className="flex flex-col items-center gap-1 flex-1 min-w-0">
+            <span
+              className="text-[0.6rem] font-black px-1.5 py-0.5 rounded-full"
+              style={{ background: s.bg, color: s.badge, border: `1px solid ${s.ring}` }}
+            >
+              #{rank}
+            </span>
+            <div
+              className={`${avatarCls} rounded-full flex items-center justify-center font-black text-white`}
+              style={{ background: s.bg, border: `2px solid ${s.ring}`, boxShadow: s.glow }}
+            >
+              {name.charAt(0).toUpperCase()}
+            </div>
+            <p className="text-[0.7rem] font-semibold text-white text-center truncate w-full px-1 leading-tight">{name}</p>
+            <p className="text-xs font-black" style={{ color: rank === 1 ? '#34d399' : '#94a3b8' }}>
+              {e.total_points.toFixed(1)}
+            </p>
+            <div
+              className={`w-full rounded-t-lg mt-0.5 ${podiumCls}`}
+              style={{ background: `linear-gradient(180deg,${s.bg},transparent)`, border: `1px solid ${s.ring}`, borderBottom: 'none' }}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -268,10 +574,18 @@ function TournamentLeaderboard({ tournaments, user }) {
         <p className="text-xs mb-3" style={{ color: '#64748b' }}>{selected.name}</p>
       )}
 
-      {isLoading
-        ? <p className="text-sm text-center py-6" style={{ color: '#64748b' }}>Loading…</p>
-        : <LeaderboardTable entries={entries.slice(0, 5)} currentUserId={user?.id} showContests />
-      }
+      {isLoading ? (
+        <p className="text-sm text-center py-6" style={{ color: '#64748b' }}>Loading…</p>
+      ) : entries.length < 3 ? (
+        <LeaderboardTable entries={entries} currentUserId={user?.id} showContests />
+      ) : (
+        <>
+          <Podium entries={entries} />
+          {entries.length > 3 && (
+            <LeaderboardTable entries={entries.slice(3, 8)} currentUserId={user?.id} showContests />
+          )}
+        </>
+      )}
       {activeTournamentId && (
         <Link
           to={`/tournaments/${activeTournamentId}/leaderboard`}
@@ -314,11 +628,10 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ── Trending Contests ── */}
-      <section>
-        <SectionHeader title="Trending Contests" linkTo="/tournaments" linkLabel="View all →" />
-        <TrendingContests contests={trendingContests} user={user} />
-      </section>
+      {/* ── Featured Contest ── */}
+      {trendingContests.some((c) => !c.is_locked) && (
+        <FeaturedContest contests={trendingContests} user={user} />
+      )}
 
       {/* ── My Contests (logged-in only) ── */}
       {user && (
@@ -332,7 +645,13 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ── Trending Players ── */}
+      {/* ── Trending Contests ── */}
+      <section>
+        <SectionHeader title="Trending Contests" linkTo="/tournaments" linkLabel="View all →" />
+        <TrendingContests contests={trendingContests} user={user} />
+      </section>
+
+      {/* ── Selector's Favs ── */}
       <section>
         <SectionHeader title="Selector's Favs" linkTo="/players" linkLabel="View all →" />
         <TrendingPlayers players={trendingPlayers} />

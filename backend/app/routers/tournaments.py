@@ -56,7 +56,8 @@ async def get_tournament(
     result = await db.execute(
         select(Tournament)
         .options(
-            selectinload(Tournament.contests),
+            selectinload(Tournament.contests).selectinload(Contest.team_a),
+            selectinload(Tournament.contests).selectinload(Contest.team_b),
             selectinload(Tournament.tournament_teams).selectinload(TournamentTeam.team),
         )
         .where(Tournament.id == tournament_id)

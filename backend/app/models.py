@@ -144,6 +144,7 @@ class Contest(Base):
     registration_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    prize: Mapped[str] = mapped_column(String(255), nullable=False, server_default='Winner Badge')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tournament: Mapped["Tournament | None"] = relationship("Tournament", back_populates="contests")
