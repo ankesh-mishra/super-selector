@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 function Section({ children }) {
   return (
@@ -21,8 +21,10 @@ function Divider() {
 }
 
 export default function AboutPage() {
+  const navigate = useNavigate()
   return (
     <div className="flex flex-col gap-5">
+      <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
 
       {/* Hero */}
       <div
@@ -53,7 +55,7 @@ export default function AboutPage() {
         <h2 className="text-sm font-bold text-white tracking-wide uppercase" style={{ color: '#64748b' }}>What is Super Selector?</h2>
         <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
           Super Selector lets sports fans compete with friends and communities by creating teams,
-          making selections, and climbing leaderboards across tournaments and contests.
+          making selections, and climbing Super Selectors across tournaments and contests.
           The app is designed around <span className="text-emerald-400 font-medium">strategy</span>,{' '}
           <span className="text-cyan-400 font-medium">community engagement</span>, and the excitement
           of following live sports.

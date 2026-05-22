@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { playersApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
+import PlayerAvatar from '../components/PlayerAvatar'
 
 const HERO_STYLE = {
   background: 'linear-gradient(#0f1623,#0f1623) padding-box, linear-gradient(135deg,#10b981,#06b6d4) border-box',
@@ -60,15 +61,7 @@ export default function PlayerDetailPage() {
           {player.team?.name}
         </p>
         <div className="flex items-center gap-4">
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 text-2xl font-black text-white"
-            style={{
-              background: 'linear-gradient(135deg,rgba(16,185,129,.2),rgba(6,182,212,.15))',
-              border: '1px solid rgba(16,185,129,.35)',
-            }}
-          >
-            {player.name.charAt(0).toUpperCase()}
-          </div>
+          <PlayerAvatar player={player} size="lg" />
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-white truncate">{player.name}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -164,7 +157,7 @@ export default function PlayerDetailPage() {
                       {cs.contest_name}
                     </Link>
                     <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-                      {new Date(cs.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {new Date(cs.match_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">

@@ -77,9 +77,9 @@ export default function TournamentsPage() {
               )}
               {(t.start_date || t.end_date) && (
                 <p className="text-xs mt-1.5" style={{ color: '#475569' }}>
-                  {t.start_date && new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {t.start_date && new Date(t.start_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   {t.start_date && t.end_date && ' – '}
-                  {t.end_date && new Date(t.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {t.end_date && new Date(t.end_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
             </div>

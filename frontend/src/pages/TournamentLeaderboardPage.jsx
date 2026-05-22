@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { leaderboardApi, tournamentsApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import LeaderboardTable from '../components/LeaderboardTable'
 
 export default function TournamentLeaderboardPage() {
   const { id: tournamentId } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
 
   const { data: tournament } = useQuery({
@@ -22,11 +23,9 @@ export default function TournamentLeaderboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link to={`/tournaments/${tournamentId}`} className="text-xs text-emerald-400 hover:text-emerald-300 transition">
-          ← {tournament?.name || 'Tournament'}
-        </Link>
+        <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
         <h2 className="text-lg font-bold text-white mt-1">
-          {tournament?.name ? `${tournament.name} — Leaderboard` : 'Tournament Leaderboard'}
+          {tournament?.name ? `${tournament.name} — Super Selectors` : 'Tournament Super Selectors'}
         </h2>
         <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Cumulative points across all contests</p>
       </div>

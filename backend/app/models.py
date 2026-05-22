@@ -1,6 +1,7 @@
 import uuid
 import enum
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     Boolean, DateTime, Float, ForeignKey, Integer, String, Text,
@@ -120,6 +121,7 @@ class Player(Base):
     # Real team captain: bid_points forced to 0 by backend
     is_real_captain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    photo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     team: Mapped["Team"] = relationship("Team", back_populates="players")
@@ -258,3 +260,24 @@ class ContestGamePlayer(Base):
 
     contest_game: Mapped["ContestGame"] = relationship("ContestGame", back_populates="game_players")
     player: Mapped["Player"] = relationship("Player", back_populates="contest_game_players")
+
+
+# ──────────────────────────────────────────────
+# Analytics
+# ──────────────────────────────────────────────
+
+class PageView(Base):
+    __tablename__ = "page_views"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Persistent browser UUID stored in localStorage — ties anon + logged-in events together
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Null for anonymous visitors; set once the user is authenticated
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # pathname only (no query string) to avoid storing PII
+    page: Mapped[str] = mapped_column(String(512), nullable=False)
+    visited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )

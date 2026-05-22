@@ -18,7 +18,8 @@ export const teamsApi = {
 // ── Players ───────────────────────────────────────────────────────────────────
 export const playersApi = {
   list: (params) => client.get('/api/players', { params }),
-  trending: () => client.get('/api/players/trending'),
+  trending: (params) => client.get('/api/players/trending', { params }),
+  byPoints: (params) => client.get('/api/players/by-points', { params }),
   stats: (id) => client.get(`/api/players/${id}/stats`),
 }
 
@@ -55,8 +56,7 @@ export const leaderboardApi = {
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
-export const adminApi = {
-  createTournament: (data) => client.post('/api/admin/tournaments', data),
+export const adminApi = {  createTournament: (data) => client.post('/api/admin/tournaments', data),
   updateTournament: (id, data) => client.patch(`/api/admin/tournaments/${id}`, data),
   getTournament: (id) => client.get(`/api/admin/tournaments/${id}`),
   addTournamentTeam: (tournamentId, teamId) =>
@@ -74,4 +74,11 @@ export const adminApi = {
   deleteGame: (contestId, gameId) =>
     client.delete(`/api/admin/contests/${contestId}/games/${gameId}`),
   allTeams: (contestId) => client.get(`/api/admin/contests/${contestId}/all-teams`),
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+export const analyticsApi = {
+  // Fire-and-forget — caller should catch errors silently
+  trackPage: (data) => client.post('/api/analytics/pageview', data),
+  summary: () => client.get('/api/analytics/summary'),
 }

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { usePageTracking } from './utils/usePageTracking'
 import Navbar from './components/Navbar'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
@@ -34,6 +35,7 @@ function AdminRoute({ children }) {
 }
 
 function AppRoutes() {
+  usePageTracking()
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#080d14', color: '#f0f4f8' }}>
       <Navbar />

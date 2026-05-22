@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { contestsApi, playersApi, userTeamsApi } from '../api/endpoints'
 import PlayerCard from '../components/PlayerCard'
+import PlayerAvatar from '../components/PlayerAvatar'
 
 const TEAM_SIZE = 11
 const MAX_FROM_ONE_TEAM = 7
@@ -16,7 +17,8 @@ export default function TeamBuilderPage() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [captainId, setCaptainId] = useState(null)
   const [vcId, setVcId] = useState(null)
-  const [filterTeam, setFilterTeam] = useState('all')
+  const [filterGroup, setFilterGroup] = useState('real_c')
+  const [step, setStep] = useState('pick') // 'pick' | 'assign'
   const [error, setError] = useState('')
   const [isEditMode, setIsEditMode] = useState(false)
 
@@ -75,15 +77,18 @@ export default function TeamBuilderPage() {
   const realCaptainCount = useMemo(() => selectedPlayers.filter((p) => p.is_real_captain).length, [selectedPlayers])
   const maxTeamCount = Math.max(0, ...Object.values(teamCount))
 
-  const validationErrors = []
-  if (selectedIds.size !== TEAM_SIZE)  validationErrors.push(`Select ${TEAM_SIZE} players (${selectedIds.size} selected)`)
-  if (totalBid > MAX_BID)              validationErrors.push(`Budget exceeded: ${totalBid.toLocaleString()} / ${MAX_BID.toLocaleString()}`)
-  if (femaleCount < MIN_FEMALE)        validationErrors.push(`Min ${MIN_FEMALE} female required (${femaleCount} selected)`)
-  if (maxTeamCount > MAX_FROM_ONE_TEAM) validationErrors.push(`Max ${MAX_FROM_ONE_TEAM} from one team`)
-  if (realCaptainCount !== 1)          validationErrors.push(`Must select exactly 1 real team captain (${realCaptainCount} selected)`)
-  if (!captainId)                      validationErrors.push('Designate a fantasy captain (C)')
-  if (!vcId)                           validationErrors.push('Designate a vice captain (VC)')
-  const canSubmit = validationErrors.length === 0
+  const pickErrors = []
+  if (selectedIds.size !== TEAM_SIZE)   pickErrors.push(`Select ${TEAM_SIZE} players (${selectedIds.size} selected)`)
+  if (totalBid > MAX_BID)               pickErrors.push(`Budget exceeded: ${totalBid.toLocaleString()} / ${MAX_BID.toLocaleString()}`)
+  if (femaleCount < MIN_FEMALE)         pickErrors.push(`Min ${MIN_FEMALE} female required (${femaleCount} selected)`)
+  if (maxTeamCount > MAX_FROM_ONE_TEAM) pickErrors.push(`Max ${MAX_FROM_ONE_TEAM} from one team`)
+  if (realCaptainCount !== 1)           pickErrors.push(`Must include exactly 1 owner (${realCaptainCount} selected)`)
+  const canProceed = pickErrors.length === 0
+
+  const assignErrors = []
+  if (!captainId) assignErrors.push('Designate a fantasy captain (C)')
+  if (!vcId)      assignErrors.push('Designate a vice captain (VC)')
+  const canSubmit = canProceed && assignErrors.length === 0
 
   const togglePlayer = (playerId) => {
     setSelectedIds((prev) => {
@@ -112,19 +117,100 @@ export default function TeamBuilderPage() {
       }))}
       return isEditMode ? userTeamsApi.update(contestId, payload) : userTeamsApi.create(contestId, payload)
     },
-    onSuccess: () => navigate(`/contests/${contestId}/my-team`),
+    onSuccess: () => navigate(`/contests/${contestId}`),
     onError: (e) => setError(e.response?.data?.detail || 'Submission failed.'),
   })
 
-  const filteredPlayers = (players || []).filter((p) => filterTeam === 'all' || p.team_id === filterTeam)
+  const filteredPlayers = useMemo(() => {
+    const sorted = [...(players || [])].sort((a, b) => b.bid_points - a.bid_points)
+    if (filterGroup === 'real_c') return sorted.filter((p) => p.is_real_captain)
+    if (filterGroup === 'women')  return sorted.filter((p) => p.gender === 'FEMALE')
+    return sorted.filter((p) => !p.is_real_captain && p.gender !== 'FEMALE')
+  }, [players, filterGroup])
 
   if (!contest || !players) return <p className="text-center py-12 text-sm" style={{ color: '#64748b' }}>Loading…</p>
 
-  const statOk  = (ok) => ok ? '#34d399' : '#f87171'
+  const statOk = (ok) => ok ? '#34d399' : '#f87171'
+
+  // ── Step 2: Assign C / VC ───────────────────────────────────────────────
+  if (step === 'assign') {
+    const sorted = [...selectedPlayers].sort((a, b) => b.bid_points - a.bid_points)
+    return (
+      <div className="flex flex-col gap-4">
+        <button onClick={() => setStep('pick')} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back to selection</button>
+        <div>
+          <h2 className="text-lg font-bold text-white">Pick Captain &amp; Vice Captain</h2>
+          <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>Tap C or VC next to a player. Each role can only be held by one player.</p>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          {sorted.map((p) => (
+            <div
+              key={p.id}
+              className="rounded-xl px-3 py-2 flex items-center gap-2"
+              style={{
+                background: '#0f1623',
+                border: `1px solid ${
+                  captainId === p.id ? 'rgba(16,185,129,.5)'
+                  : vcId === p.id   ? 'rgba(59,130,246,.5)'
+                  : '#1e2d42'
+                }`,
+              }}
+            >
+              <PlayerAvatar player={p} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm text-white truncate">{p.name}</p>
+                <p className="text-xs truncate" style={{ color: '#64748b' }}>{p.team?.name}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => handleSetCaptain(p.id)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg transition"
+                  style={
+                    captainId === p.id
+                      ? { background: '#059669', color: '#fff' }
+                      : { background: '#1a2236', color: '#475569', border: '1px solid #1e2d42' }
+                  }
+                >C</button>
+                <button
+                  onClick={() => handleSetVC(p.id)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg transition"
+                  style={
+                    vcId === p.id
+                      ? { background: '#2563eb', color: '#fff' }
+                      : { background: '#1a2236', color: '#475569', border: '1px solid #1e2d42' }
+                  }
+                >VC</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {assignErrors.length > 0 && (
+          <ul className="rounded-xl p-3 text-xs flex flex-col gap-1" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171' }}>
+            {assignErrors.map((e, i) => <li key={i}>• {e}</li>)}
+          </ul>
+        )}
+
+        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+        <button
+          disabled={!canSubmit || submitMutation.isPending}
+          onClick={() => submitMutation.mutate()}
+          className="font-semibold py-3 rounded-xl transition disabled:opacity-40 hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }}
+        >
+          {submitMutation.isPending ? 'Submitting…' : isEditMode ? 'Update Team' : 'Submit Team'}
+        </button>
+      </div>
+    )
+  }
+
+  // ── Step 1: Pick players ────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-4">
-      <Link to={`/contests/${contestId}`} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition">← Contest</Link>
+      <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
       <h2 className="text-lg font-bold text-white">{isEditMode ? 'Edit Your Team' : 'Build Your Team'}</h2>
 
       {/* Stats bar */}
@@ -145,51 +231,43 @@ export default function TeamBuilderPage() {
         </div>
         <div>
           <p className="font-black text-base" style={{ color: statOk(realCaptainCount === 1) }}>{realCaptainCount}</p>
-          <p style={{ color: '#64748b' }}>Real C</p>
+          <p style={{ color: '#64748b' }}>Owner</p>
         </div>
       </div>
 
-      {/* Team filter tabs */}
+      {/* Player group tabs */}
       <div className="flex gap-2">
-        {['all', contest.team_a_id, contest.team_b_id].map((tid) => {
-          const label = tid === 'all' ? 'All' : tid === contest.team_a_id ? contest.team_a?.name : contest.team_b?.name
-          return (
-            <button
-              key={tid}
-              className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition"
-              style={
-                filterTeam === tid
-                  ? { background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }
-                  : { background: '#0f1623', border: '1px solid #1e2d42', color: '#64748b' }
-              }
-              onClick={() => setFilterTeam(tid)}
-            >
-              {label}
-            </button>
-          )
-        })}
+        {[['real_c', 'Owner'], ['women', 'Women'], ['rest', 'Rest']].map(([key, label]) => (
+          <button
+            key={key}
+            className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition"
+            style={
+              filterGroup === key
+                ? { background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }
+                : { background: '#0f1623', border: '1px solid #1e2d42', color: '#64748b' }
+            }
+            onClick={() => setFilterGroup(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Validation errors */}
-      {validationErrors.length > 0 && (
+      {pickErrors.length > 0 && (
         <ul className="rounded-xl p-3 text-xs flex flex-col gap-1" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171' }}>
-          {validationErrors.map((e, i) => <li key={i}>• {e}</li>)}
+          {pickErrors.map((e, i) => <li key={i}>• {e}</li>)}
         </ul>
       )}
 
-      {/* Player grid */}
-      <div className="grid grid-cols-2 gap-2">
+      {/* Player list */}
+      <div className="flex flex-col gap-1">
         {filteredPlayers.map((p) => (
           <PlayerCard
             key={p.id}
             player={p}
             selected={selectedIds.has(p.id)}
             onToggle={togglePlayer}
-            isCaptain={captainId === p.id}
-            isVC={vcId === p.id}
-            onCaptain={handleSetCaptain}
-            onVC={handleSetVC}
-            disabled={!selectedIds.has(p.id) && selectedIds.size >= TEAM_SIZE}
           />
         ))}
       </div>
@@ -197,12 +275,12 @@ export default function TeamBuilderPage() {
       {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
       <button
-        disabled={!canSubmit || submitMutation.isPending}
-        onClick={() => submitMutation.mutate()}
+        disabled={!canProceed}
+        onClick={() => setStep('assign')}
         className="font-semibold py-3 rounded-xl transition disabled:opacity-40 hover:opacity-90"
         style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff' }}
       >
-        {submitMutation.isPending ? 'Submitting…' : isEditMode ? 'Update Team' : 'Submit Team'}
+        {isEditMode ? 'Update Team →' : 'Continue →'}
       </button>
     </div>
   )

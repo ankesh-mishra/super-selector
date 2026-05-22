@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { adminApi, teamsApi, playersApi, contestsApi, tournamentsApi } from '../api/endpoints'
+import { adminApi, analyticsApi, teamsApi, playersApi, contestsApi, tournamentsApi } from '../api/endpoints'
 import { Button } from '@/components/ui/button'
 import { Input as ShadInput } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,7 +46,7 @@ function Btn({ children, variant = 'default', ...props }) {
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
-const TABS = ['Tournaments', 'Teams', 'Players', 'Contests', 'Score Entry', 'All Teams']
+const TABS = ['Tournaments', 'Teams', 'Players', 'Contests', 'Score Entry', 'All Teams', 'Analytics']
 
 // ─── Tournaments Tab ──────────────────────────────────────────────────────────
 function TournamentsTab() {
@@ -365,6 +365,35 @@ function PlayersTab() {
   )
 }
 
+// ─── Contest Date Editor ──────────────────────────────────────────────────────
+function ContestDateEditor({ contests, qc, setMsg }) {
+  const [editId, setEditId] = useState('')
+  const [editVal, setEditVal] = useState('')
+  const editDate = useMutation({
+    mutationFn: () => adminApi.updateContest(editId, { match_date: new Date(editVal).toISOString(), is_locked: false }),
+    onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Match time updated!') },
+  })
+  return (
+    <>
+      <Select label="Contest" value={editId} onChange={(e) => {
+        setEditId(e.target.value)
+        const c = (contests || []).find((x) => x.id === e.target.value)
+        if (c?.match_date) setEditVal(c.match_date.slice(0, 16))
+      }}>
+        <option value="">— select contest —</option>
+        {(contests || []).filter((c) => !c.is_completed).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
+      {editId && (
+        <Input label="New match date/time" type="datetime-local" value={editVal}
+          onChange={(e) => setEditVal(e.target.value)} />
+      )}
+      <Btn disabled={!editId || !editVal || editDate.isPending} onClick={() => editDate.mutate()}>
+        Save Match Time
+      </Btn>
+    </>
+  )
+}
+
 // ─── Contest Prize Editor ─────────────────────────────────────────────────────
 function ContestPrizeEditor({ contests, qc, setMsg }) {
   const [editPrizeId, setEditPrizeId] = useState('')
@@ -513,6 +542,10 @@ function ContestsTab() {
       <Btn disabled={!completeId || markComplete.isPending} onClick={() => markComplete.mutate(completeId)}>Mark as Completed</Btn>
 
       <hr className="my-2" />
+      <p className="text-xs font-semibold text-gray-500 uppercase">Change match time</p>
+      <ContestDateEditor contests={contests} qc={qc} setMsg={setMsg} />
+
+      <hr className="my-2" />
       <p className="text-xs font-semibold text-gray-500 uppercase">Edit contest prize</p>
       <ContestPrizeEditor contests={contests} qc={qc} setMsg={setMsg} />
       {msg && <p className="text-sm text-primary">{msg}</p>}
@@ -538,7 +571,10 @@ function emptyForm() {
     gameName: '',
     sel: { a1: '', a2: '', b1: '', b2: '' },
     winningTeamId: '',
-    sets: [{ team_a_points: '', team_b_points: '' }, { team_a_points: '', team_b_points: '' }],
+    sets: [
+      { team_a_points: '', team_b_points: '', shots: {} },
+      { team_a_points: '', team_b_points: '', shots: {} },
+    ],
   }
 }
 
@@ -559,7 +595,16 @@ function formFromGame(g, contest) {
     sets: g.game_details?.sets?.map((s) => ({
       team_a_points: String(s.team_a_points),
       team_b_points: String(s.team_b_points),
-    })) || [{ team_a_points: '', team_b_points: '' }, { team_a_points: '', team_b_points: '' }],
+      shots: Object.fromEntries(
+        Object.entries(s.shots || {}).map(([pid, v]) => [
+          pid,
+          { positive: String(v.positive ?? ''), negative: String(v.negative ?? '') },
+        ])
+      ),
+    })) || [
+      { team_a_points: '', team_b_points: '', shots: {} },
+      { team_a_points: '', team_b_points: '', shots: {} },
+    ],
   }
 }
 
@@ -569,14 +614,26 @@ function getPlayerIds(form) {
 }
 
 function buildPayload(form) {
+  const playerIds = getPlayerIds(form)
   return {
     winning_team_id: form.winningTeamId,
     name: form.gameName || null,
-    player_ids: getPlayerIds(form),
+    player_ids: playerIds,
     game_details: {
       sets: form.sets.filter((s) => s.team_a_points !== '').map((s) => ({
         team_a_points: Number(s.team_a_points),
         team_b_points: Number(s.team_b_points),
+        shots: Object.fromEntries(
+          playerIds
+            .filter((pid) => s.shots?.[pid])
+            .map((pid) => [
+              pid,
+              {
+                positive: Number(s.shots[pid].positive || 0),
+                negative: Number(s.shots[pid].negative || 0),
+              },
+            ])
+        ),
       })),
     },
   }
@@ -584,8 +641,23 @@ function buildPayload(form) {
 
 // Shared form fields used in both Add and inline Edit
 function ScoreFormFields({ form, patch, contest, playersA, playersB, availablePresets }) {
-  const addSet = () => patch({ sets: [...form.sets, { team_a_points: '', team_b_points: '' }] })
+  const addSet = () => patch({ sets: [...form.sets, { team_a_points: '', team_b_points: '', shots: {} }] })
   const removeSet = () => form.sets.length > 2 && patch({ sets: form.sets.slice(0, -1) })
+
+  // All players currently selected in the form, in order A1, A2, B1, B2
+  const allPlayers = [...(playersA || []), ...(playersB || [])]
+  const selectedPlayers = getPlayerIds(form)
+    .map((pid) => allPlayers.find((p) => p.id === pid))
+    .filter(Boolean)
+
+  const patchShot = (setIdx, pid, field, val) => {
+    const newSets = form.sets.map((s, i) => {
+      if (i !== setIdx) return s
+      return { ...s, shots: { ...s.shots, [pid]: { ...(s.shots?.[pid] || {}), [field]: val } } }
+    })
+    patch({ sets: newSets })
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <Select label="Game type" value={form.gameType}
@@ -639,26 +711,59 @@ function ScoreFormFields({ form, patch, contest, playersA, playersB, availablePr
         <option value={contest.team_a_id}>{contest.team_a?.name}</option>
         <option value={contest.team_b_id}>{contest.team_b?.name}</option>
       </Select>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-gray-500 uppercase">Set Scores</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase">Set Scores & Shots</p>
           <div className="flex gap-1">
             <button className="text-xs text-primary hover:underline" onClick={addSet}>+ Set</button>
             {form.sets.length > 2 && <button className="text-xs text-red-500 hover:underline" onClick={removeSet}>− Set</button>}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1 text-xs font-medium text-gray-500 px-1">
-          <span>Set</span>
-          <span className="text-center">{contest.team_a?.name}</span>
-          <span className="text-center">{contest.team_b?.name}</span>
-        </div>
+
         {form.sets.map((s, i) => (
-          <div key={i} className="grid grid-cols-3 gap-2 items-center">
-            <span className="text-xs text-gray-400">Set {i + 1}</span>
-            <input type="number" className="border border-input rounded px-2 py-1 text-sm text-center outline-none focus:ring-1 focus:ring-primary bg-background text-foreground"
-              value={s.team_a_points} onChange={(e) => { const n = [...form.sets]; n[i] = { ...n[i], team_a_points: e.target.value }; patch({ sets: n }) }} />
-            <input type="number" className="border border-input rounded px-2 py-1 text-sm text-center outline-none focus:ring-1 focus:ring-primary bg-background text-foreground"
-              value={s.team_b_points} onChange={(e) => { const n = [...form.sets]; n[i] = { ...n[i], team_b_points: e.target.value }; patch({ sets: n }) }} />
+          <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
+            {/* Set score row */}
+            <div className="grid grid-cols-3 gap-2 items-center">
+              <span className="text-xs font-semibold text-gray-500">Set {i + 1}</span>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[0.6rem] text-gray-400">{contest.team_a?.name}</span>
+                <input type="number" className="border border-input rounded px-2 py-1 text-sm text-center outline-none focus:ring-1 focus:ring-primary bg-background text-foreground w-full"
+                  value={s.team_a_points} onChange={(e) => { const n = [...form.sets]; n[i] = { ...n[i], team_a_points: e.target.value }; patch({ sets: n }) }} />
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[0.6rem] text-gray-400">{contest.team_b?.name}</span>
+                <input type="number" className="border border-input rounded px-2 py-1 text-sm text-center outline-none focus:ring-1 focus:ring-primary bg-background text-foreground w-full"
+                  value={s.team_b_points} onChange={(e) => { const n = [...form.sets]; n[i] = { ...n[i], team_b_points: e.target.value }; patch({ sets: n }) }} />
+              </div>
+            </div>
+
+            {/* Per-player shot inputs */}
+            {selectedPlayers.length > 0 && (
+              <div className="mt-1 flex flex-col gap-1 border-t border-dashed border-border pt-2">
+                <div className="grid grid-cols-3 gap-1 px-0.5">
+                  <span className="text-[0.6rem] font-semibold text-gray-500 uppercase">Player</span>
+                  <span className="text-[0.6rem] font-semibold text-green-500 text-center uppercase">+ Shots</span>
+                  <span className="text-[0.6rem] font-semibold text-red-400 text-center uppercase">− Shots</span>
+                </div>
+                {selectedPlayers.map((p) => (
+                  <div key={p.id} className="grid grid-cols-3 gap-1 items-center">
+                    <span className="text-xs text-gray-400 truncate" title={p.name}>{p.name}</span>
+                    <input
+                      type="number" min="0" placeholder="0"
+                      className="border border-input rounded px-2 py-1 text-xs text-center outline-none focus:ring-1 focus:ring-green-500 bg-background text-foreground"
+                      value={s.shots?.[p.id]?.positive ?? ''}
+                      onChange={(e) => patchShot(i, p.id, 'positive', e.target.value)}
+                    />
+                    <input
+                      type="number" min="0" placeholder="0"
+                      className="border border-input rounded px-2 py-1 text-xs text-center outline-none focus:ring-1 focus:ring-red-400 bg-background text-foreground"
+                      value={s.shots?.[p.id]?.negative ?? ''}
+                      onChange={(e) => patchShot(i, p.id, 'negative', e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1034,6 +1139,123 @@ function AllTeamsTab() {
   )
 }
 
+// ─── Analytics Tab ────────────────────────────────────────────────────────────
+function StatCard({ label, value }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg bg-muted p-3 gap-0.5 min-w-[90px]">
+      <span className="text-xl font-bold tabular-nums">{value ?? '—'}</span>
+      <span className="text-[10px] text-muted-foreground uppercase tracking-wide text-center">{label}</span>
+    </div>
+  )
+}
+
+function AnalyticsTab() {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['analytics-summary'],
+    queryFn: () => analyticsApi.summary().then((r) => r.data),
+    refetchInterval: 60_000, // auto-refresh every minute
+  })
+
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Loading analytics…</p>
+  if (isError) return <p className="text-sm text-destructive py-4">Failed to load analytics.</p>
+
+  const { active_now, visitors, logged_in_users, total_page_views, top_pages, dau_7d } = data
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Auto-refreshes every 60s</p>
+        <Btn variant="ghost" onClick={() => refetch()}>Refresh now</Btn>
+      </div>
+
+      {/* Active now */}
+      <section>
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Live (last 30 min)</p>
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Active sessions" value={active_now} />
+          <StatCard label="Total page views" value={total_page_views} />
+        </div>
+      </section>
+
+      <hr className="my-1" />
+
+      {/* Unique visitors */}
+      <section>
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Unique visitors (by device)</p>
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Last 24h" value={visitors.last_24h} />
+          <StatCard label="Last 7 days" value={visitors.last_7d} />
+          <StatCard label="Last 30 days" value={visitors.last_30d} />
+          <StatCard label="All time" value={visitors.all_time} />
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          Counts anonymous + logged-in as 1 if from the same browser.
+        </p>
+      </section>
+
+      <hr className="my-1" />
+
+      {/* Logged-in users */}
+      <section>
+        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Logged-in users</p>
+        <div className="flex gap-3 flex-wrap">
+          <StatCard label="Last 24h" value={logged_in_users.last_24h} />
+          <StatCard label="Last 7 days" value={logged_in_users.last_7d} />
+          <StatCard label="Last 30 days" value={logged_in_users.last_30d} />
+        </div>
+      </section>
+
+      <hr className="my-1" />
+
+      {/* DAU table */}
+      {dau_7d.length > 0 && (
+        <section>
+          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Daily unique visitors — last 7 days</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border">
+                <th className="text-left py-1 pr-4 font-medium">Date</th>
+                <th className="text-right py-1 font-medium">Visitors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dau_7d.map((row) => (
+                <tr key={row.date} className="border-b border-border/40">
+                  <td className="py-1 pr-4 tabular-nums">{row.date}</td>
+                  <td className="py-1 text-right tabular-nums font-semibold">{row.visitors}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Top pages */}
+      {top_pages.length > 0 && (
+        <section>
+          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Top pages (all time)</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-muted-foreground border-b border-border">
+                <th className="text-left py-1 pr-4 font-medium">Page</th>
+                <th className="text-right py-1 font-medium">Views</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top_pages.map((row) => (
+                <tr key={row.page} className="border-b border-border/40">
+                  <td className="py-1 pr-4 font-mono">{row.page}</td>
+                  <td className="py-1 text-right tabular-nums font-semibold">{row.views}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Admin Panel ─────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const [tab, setTab] = useState('Teams')
@@ -1045,6 +1267,7 @@ export default function AdminPanel() {
     Contests: <ContestsTab />,
     'Score Entry': <ScoreEntryTab />,
     'All Teams': <AllTeamsTab />,
+    Analytics: <AnalyticsTab />,
   }
 
   return (

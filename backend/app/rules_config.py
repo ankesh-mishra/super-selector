@@ -29,9 +29,14 @@ DEFAULT_MULTIPLIER = 1.0
 #   (optional keys)   — rule-specific thresholds
 # ──────────────────────────────────────────────
 SCORING_EVENTS = {
-    # 2 pts to every player on the winning side of a game
+    # 1 pt to every player on the winning side of a game
     "WIN": {
-        "points": 2,
+        "points": 1,
+        "enabled": True,
+    },
+    # +0.5 pts to every player on the side that wins each individual set
+    "SET_WIN": {
+        "points": 0.5,
         "enabled": True,
     },
     # +1 pt bonus if the winning team won 2-0 (straight sets)
@@ -58,5 +63,15 @@ SCORING_EVENTS = {
         "points": 0.5,
         "enabled": True,
         "bid_ratio_threshold": 0.75,  # winner_bid_total <= loser_bid_total * 0.75
+    },
+    # +0.05 pts per positive shot credited to a player in a set
+    "POSITIVE_SHOT": {
+        "points": 0.05,
+        "enabled": True,
+    },
+    # -0.05 pts per negative shot credited to a player in a set
+    "NEGATIVE_SHOT": {
+        "points": -0.05,
+        "enabled": True,
     },
 }

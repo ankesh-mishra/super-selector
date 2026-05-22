@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { leaderboardApi, contestsApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import LeaderboardTable from '../components/LeaderboardTable'
 
 export default function ContestLeaderboardPage() {
   const { id: contestId } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
 
   const { data: contest } = useQuery({
@@ -32,9 +33,9 @@ export default function ContestLeaderboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link to={`/contests/${contestId}`} className="text-xs text-emerald-400 hover:text-emerald-300 transition">← Contest</Link>
+        <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
         {subHeader && <p className="text-xs font-semibold text-emerald-400 mt-2 uppercase tracking-wide">{subHeader}</p>}
-        <h2 className="text-lg font-bold text-white mt-1">{contest?.name || 'Contest Leaderboard'}</h2>
+          <h2 className="text-lg font-bold text-white mt-1">{contest?.name || 'Contest Super Selectors'}</h2>
         {!contest?.is_locked && (
           <p className="text-xs mt-1 flex items-center gap-1" style={{ color: '#64748b' }}>
             🔒 Team picks are hidden until the contest is locked

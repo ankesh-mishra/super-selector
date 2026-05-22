@@ -122,6 +122,7 @@ class PlayerUpdate(BaseModel):
     bid_points: Optional[int] = None
     is_real_captain: Optional[bool] = None
     is_active: Optional[bool] = None
+    photo_url: Optional[str] = None
 
 
 class PlayerOut(BaseModel):
@@ -132,6 +133,7 @@ class PlayerOut(BaseModel):
     bid_points: int
     is_real_captain: bool
     is_active: bool
+    photo_url: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -143,6 +145,10 @@ class PlayerWithTeamOut(PlayerOut):
 
 class PlayerTrendingOut(PlayerWithTeamOut):
     selection_count: int = 0
+
+
+class PlayerByPointsOut(PlayerWithTeamOut):
+    total_points: float = 0.0
 
 
 class PlayerGameEventOut(BaseModel):
@@ -247,6 +253,8 @@ class ContestBriefOut(BaseModel):
     is_locked: bool
     is_completed: bool
     prize: str = 'Winner Badge'
+    participant_count: int = 0
+    winning_team_name: Optional[str] = None
     team_a: TeamOut
     team_b: TeamOut
 

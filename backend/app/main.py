@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, teams, players, contests, user_teams, leaderboard, admin, tournaments
+from app.routers import auth, teams, players, contests, user_teams, leaderboard, admin, tournaments, analytics
 
 settings = get_settings()
 
@@ -28,6 +28,7 @@ app.include_router(contests.router, prefix="/api/contests", tags=["contests"])
 app.include_router(user_teams.router, prefix="/api/contests", tags=["user-teams"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 
 
 @app.get("/health")

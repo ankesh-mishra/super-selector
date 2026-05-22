@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { contestsApi, userTeamsApi, leaderboardApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
 import LeaderboardTable from '../components/LeaderboardTable'
+import PlayerAvatar from '../components/PlayerAvatar'
 import { useAuth } from '../context/AuthContext'
 import { getTeamCaptain } from '../utils/teamLogos'
 
@@ -100,7 +101,7 @@ export default function ContestDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [tab, setTab] = useState('leaderboard')
+  const [tab, setTab] = useState('super selectors')
 
   const { data: contest, isLoading } = useQuery({
     queryKey: ['contest', id],
@@ -125,6 +126,7 @@ export default function ContestDetailPage() {
 
   const isLive = contest.is_locked && !contest.is_completed
   const isDone = contest.is_completed
+  const isOpen = !contest.is_locked
   const tournamentName = contest.tournament?.name
   const subHeader = contest.match_number != null && tournamentName
     ? `Match #${contest.match_number} · ${tournamentName}`
@@ -220,7 +222,7 @@ export default function ContestDetailPage() {
             </div>
             <div className="flex flex-col items-end shrink-0 gap-0.5">
               <p className="text-[0.6rem]" style={{ color: '#475569' }}>
-                {new Date(contest.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {new Date(contest.match_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </p>
               {contest.prize && (
                 <p className="text-[0.6rem] font-semibold" style={{ color: '#34d399' }}>🏆 {contest.prize}</p>
@@ -232,7 +234,7 @@ export default function ContestDetailPage() {
 
       {/* ── Single tab bar ── */}
       <div className="flex gap-2">
-        {['my team', 'leaderboard', 'scorecard'].map((t) => (
+        {['my team', 'super selectors', 'scorecard'].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -251,7 +253,7 @@ export default function ContestDetailPage() {
       {/* ── Tab content ── */}
       {tab === 'scorecard' ? (
         <Scorecard contest={contest} />
-      ) : tab === 'leaderboard' ? (
+      ) : tab === 'super selectors' ? (
         <>
           {!contest.is_locked && (
             <p className="text-xs flex items-center gap-1" style={{ color: '#64748b' }}>
@@ -284,13 +286,13 @@ export default function ContestDetailPage() {
                 </Link>
               )}
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               {myTeam.players
                 .sort((a, b) => b.points_earned - a.points_earned)
                 .map((utp) => (
                   <div
                     key={utp.id}
-                    className="rounded-xl p-3 flex items-center justify-between"
+                    className="rounded-xl px-3 py-2 flex items-center justify-between"
                     style={{
                       background: '#0f1623',
                       border: `1px solid ${utp.is_captain ? 'rgba(16,185,129,.5)' : utp.is_vice_captain ? 'rgba(59,130,246,.4)' : '#1e2d42'}`,
@@ -303,7 +305,7 @@ export default function ContestDetailPage() {
                       {utp.is_vice_captain && (
                         <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ background: '#2563eb', color: '#fff' }}>VC</span>
                       )}
-                      <TeamBadge teamName={utp.player.team?.name} size="sm" />
+                      <PlayerAvatar player={utp.player} size="sm" />
                       <div>
                         <div className="flex items-center gap-1">
                           <p className="font-semibold text-sm text-white">{utp.player.name}</p>

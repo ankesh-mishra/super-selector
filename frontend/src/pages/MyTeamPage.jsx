@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { contestsApi, userTeamsApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
+import PlayerAvatar from '../components/PlayerAvatar'
 
 export default function MyTeamPage() {
   const { id: contestId } = useParams()
+  const navigate = useNavigate()
 
   const { data: team, isLoading, isError } = useQuery({
     queryKey: ['my-team', contestId],
@@ -23,7 +25,7 @@ export default function MyTeamPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link to={`/contests/${contestId}`} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition">← Contest</Link>
+      <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">My Team</h2>
@@ -43,13 +45,13 @@ export default function MyTeamPage() {
         </Link>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         {team.players
           .sort((a, b) => b.points_earned - a.points_earned)
           .map((utp) => (
             <div
               key={utp.id}
-              className="rounded-xl p-3 flex items-center justify-between"
+              className="rounded-xl px-3 py-2 flex items-center justify-between"
               style={{
                 background: '#0f1623',
                 border: `1px solid ${utp.is_captain ? 'rgba(16,185,129,.5)' : utp.is_vice_captain ? 'rgba(59,130,246,.4)' : '#1e2d42'}`,
@@ -62,7 +64,7 @@ export default function MyTeamPage() {
                 {utp.is_vice_captain && (
                   <span className="text-xs px-1.5 py-0.5 rounded font-bold" style={{ background: '#2563eb', color: '#fff' }}>VC</span>
                 )}
-                <TeamBadge teamName={utp.player.team?.name} size="sm" />
+                <PlayerAvatar player={utp.player} size="sm" />
                 <div>
                   <div className="flex items-center gap-1">
                     <p className="font-semibold text-sm text-white">{utp.player.name}</p>
