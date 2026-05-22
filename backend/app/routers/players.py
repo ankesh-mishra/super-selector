@@ -1,3 +1,4 @@
+import re
 import uuid
 from collections import defaultdict
 from typing import Annotated, Optional
@@ -221,6 +222,11 @@ async def proxy_player_photo(player_id: uuid.UUID, db: Annotated[AsyncSession, D
     photo_url = result.scalar_one_or_none()
     if not photo_url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photo for this player")
+
+    # Convert lh3 authenticated CDN URLs → public thumbnail endpoint
+    lh3_match = re.search(r"lh3\.googleusercontent\.com/d/([^/?]+)", photo_url)
+    if lh3_match:
+        photo_url = f"https://drive.google.com/thumbnail?id={lh3_match.group(1)}&sz=w400"
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
         try:
