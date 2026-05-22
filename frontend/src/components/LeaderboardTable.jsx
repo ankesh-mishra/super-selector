@@ -31,8 +31,8 @@ export default function LeaderboardTable({ entries, currentUserId, showContests,
                   cursor: teamPath ? 'pointer' : 'default',
                 }}
               >
-                <td className="w-10 px-3 py-2.5 text-sm" style={{ color: '#475569' }}>{e.rank}</td>
-                <td className="px-3 py-2.5 max-w-0 overflow-hidden">
+                <td className="w-10 px-3 py-1.5 text-sm" style={{ color: '#475569' }}>{e.rank}</td>
+                <td className="px-3 py-1.5 max-w-0 overflow-hidden">
                   <div className="flex items-baseline gap-1 overflow-hidden">
                     <span className={`font-medium truncate min-w-0 ${isMe ? 'text-emerald-400' : 'text-white'}`}>{displayName}</span>
                     {subName && (
@@ -46,7 +46,7 @@ export default function LeaderboardTable({ entries, currentUserId, showContests,
                     )}
                   </div>
                 </td>
-                <td className="w-24 px-3 py-2.5 text-right">
+                <td className="w-24 px-3 py-1.5 text-right">
                   <span className="font-mono text-white">
                     {e.total_points.toFixed(1)}
                   </span>

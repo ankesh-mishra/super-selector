@@ -6,16 +6,12 @@ import { useAuth } from '../context/AuthContext'
 import LeaderboardTable from '../components/LeaderboardTable'
 import TeamBadge from '../components/TeamBadge'
 import CaptainBadge from '../components/CaptainBadge'
+import PlayerAvatar from '../components/PlayerAvatar'
+import ContestCard from '../components/ContestCard'
 import { getTournamentLogo } from '../utils/tournamentLogos'
 import { getTeamCaptain } from '../utils/teamLogos'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function statusChip(contest) {
-  if (contest.is_completed) return { label: 'Completed', cls: 'badge-completed' }
-  if (contest.is_locked)    return { label: '🔴 Live',   cls: 'badge-live' }
-  return                           { label: 'Open',      cls: 'badge-open' }
-}
 
 function sortActive(myContests) {
   return [...myContests]
@@ -229,7 +225,7 @@ function FeaturedContest({ contests, user }) {
           <img src="/card-icons/prize%20pool.png" alt="" className="w-4 h-4 object-contain shrink-0" />
           <div className="flex flex-col">
             <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Prize</span>
-            <span className="text-[0.65rem] font-bold leading-tight text-white">{featured.prize || 'Winner Badge'}</span>
+            <span className="text-[0.65rem] font-bold leading-tight text-white">{(featured.prize || 'Winner Badge').replace('Winner Badge', 'Badge')}</span>
           </div>
         </div>
       </div>
@@ -252,102 +248,6 @@ function FeaturedContest({ contests, user }) {
 
 // ── Trending Contests ─────────────────────────────────────────────────────────
 
-function TrendingCard({ c, user }) {
-  const navigate = useNavigate()
-  const rawCountdown = useCountdown(c.match_date)
-  const captainSrcA = getTeamCaptain(c.team_a_name)
-  const captainSrcB = getTeamCaptain(c.team_b_name)
-  const { label, cls } = statusChip(c)
-
-  // Compact: "2h 30m" or "45m" or "Live"
-  let timeVal, timeColor
-  if (c.is_locked) {
-    timeVal = 'Live'; timeColor = '#f87171'
-  } else if (rawCountdown) {
-    const [hPart, mPart] = rawCountdown.split(' ')
-    const h = parseInt(hPart), m = parseInt(mPart)
-    timeVal = h > 0 ? `${h}h ${m}m` : `${m}m`; timeColor = '#34d399'
-  } else {
-    timeVal = new Date(c.match_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-    timeColor = '#94a3b8'
-  }
-
-  return (
-    <div
-      onClick={() => user ? navigate(`/contests/${c.id}`) : navigate('/login?register=1')}
-      className="cursor-pointer flex-none w-44 rounded-xl overflow-hidden snap-start flex flex-col transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)]"
-      style={{ background: '#080d14', border: '1px solid rgba(16,185,129,.25)', boxShadow: '0 0 20px rgba(16,185,129,.06)' }}
-    >
-      {/* ── Cinematic image area ── */}
-      <div className="relative h-28">
-        {/* Left captain */}
-        <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-          {captainSrcA && <img src={captainSrcA} alt="" className="w-full h-full object-cover object-top" />}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(90deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
-        </div>
-        {/* Right captain */}
-        <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
-          {captainSrcB && <img src={captainSrcB} alt="" className="w-full h-full object-cover object-top" />}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(270deg, rgba(8,13,20,.3) 0%, rgba(8,13,20,.85) 100%)' }} />
-        </div>
-
-        {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 pt-2 z-10">
-          <span className={`text-[0.55rem] font-semibold px-1.5 py-0.5 rounded-full ${cls}`}>{label}</span>
-          {c.tournament_name && (
-            <span className="text-[0.5rem] truncate max-w-[80px] px-1.5 py-0.5 rounded-full"
-              style={{ background: 'rgba(0,0,0,.55)', color: '#64748b', backdropFilter: 'blur(6px)' }}>
-              {c.tournament_name}
-            </span>
-          )}
-        </div>
-
-        {/* Center VS */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="absolute top-0 bottom-0 w-px"
-            style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(16,185,129,.5) 50%, transparent 100%)' }} />
-          <span className="relative text-[0.6rem] font-black px-1.5 py-0.5 rounded-lg"
-            style={{ background: 'rgba(7,26,16,.85)', color: '#fff', border: '1px solid rgba(16,185,129,.5)', backdropFilter: 'blur(8px)', boxShadow: '0 0 10px rgba(16,185,129,.5)' }}>
-            VS
-          </span>
-        </div>
-
-        {/* Bottom team names */}
-        <div className="absolute bottom-0 left-0 right-0 px-2 pt-6 pb-1.5 z-10"
-          style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(8,13,20,.97) 100%)' }}>
-          <div className="flex items-center justify-between gap-1">
-            <div className="flex items-center gap-1 min-w-0">
-              <TeamBadge teamName={c.team_a_name} size="xs" className="ring-1 ring-white shrink-0" />
-              <p className="text-[0.55rem] font-bold text-white leading-tight truncate">{c.team_a_name}</p>
-            </div>
-            <div className="flex items-center gap-1 min-w-0 flex-row-reverse">
-              <TeamBadge teamName={c.team_b_name} size="xs" className="ring-1 ring-white shrink-0" />
-              <p className="text-[0.55rem] font-bold text-white leading-tight truncate">{c.team_b_name}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Info row: icon + value only ── */}
-      <div className="flex items-center justify-between px-2.5 py-1.5"
-        style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        <div className="flex items-center gap-1">
-          <img src="/card-icons/participants.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-          <span className="text-[0.6rem] font-bold text-white">
-            {c.participant_count > 0 ? c.participant_count : '—'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <img src="/card-icons/starts%20in.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-          <span className="text-[0.6rem] font-bold" style={{ color: timeColor }}>{timeVal}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function TrendingContests({ contests, user }) {
   if (contests.length === 0) {
     return (
@@ -357,7 +257,21 @@ function TrendingContests({ contests, user }) {
   return (
     <div className="-mx-4 overflow-x-hidden">
       <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 scroll-pl-4 snap-x snap-mandatory">
-        {contests.map((c) => <TrendingCard key={c.id} c={c} user={user} />)}
+        {contests.map((c) => (
+          <ContestCard
+            key={c.id}
+            to={user ? `/contests/${c.id}` : '/login?register=1'}
+            isLive={c.is_locked && !c.is_completed}
+            isDone={c.is_completed}
+            matchDate={c.match_date}
+            teamAName={c.team_a_name}
+            teamBName={c.team_b_name}
+            topRight={c.tournament_name}
+            prize={c.prize}
+            participantCount={c.participant_count}
+            size="sm"
+          />
+        ))}
       </div>
     </div>
   )
@@ -454,17 +368,12 @@ function TrendingPlayers({ players }) {
         <Link
           key={p.id}
           to={`/players/${p.id}`}
-          className="flex-none w-32 rounded-xl p-3 snap-start text-center transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)] hover:brightness-[1.1]"
+          className="flex-none w-[4.5rem] rounded-xl p-1.5 snap-start text-center transition-all duration-200 hover:shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_0_20px_rgba(16,185,129,0.35)] hover:brightness-[1.1]"
           style={CARD_STYLE}
         >
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 text-sm font-bold text-white"
-            style={{ background: 'linear-gradient(135deg,rgba(16,185,129,.25),rgba(6,182,212,.2))', border: '1px solid rgba(16,185,129,.3)' }}
-          >
-            {p.name.charAt(0).toUpperCase()}
-          </div>
-          <p className="text-xs font-semibold text-white truncate">{p.name}</p>
-          <p className="text-[0.65rem] mt-0.5 truncate" style={{ color: '#64748b' }}>{p.team?.name}</p>
+          <PlayerAvatar player={p} size="sm" className="mx-auto mb-1" />
+          <p className="text-[0.65rem] font-semibold text-white truncate leading-tight">{p.name}</p>
+          <p className="text-[0.55rem] truncate" style={{ color: '#64748b' }}>{p.team?.name}</p>
         </Link>
       ))}
       </div>
@@ -508,7 +417,10 @@ function Podium({ entries }) {
             >
               {name.charAt(0).toUpperCase()}
             </div>
-            <p className="text-[0.7rem] font-semibold text-white text-center truncate w-full px-1 leading-tight">{name}</p>
+            <p className="text-[0.7rem] font-semibold text-white text-center truncate w-full px-1 leading-tight">{e.team_name || e.user_name}</p>
+            {e.team_name && e.user_name && (
+              <p className="text-[0.6rem] text-center truncate w-full px-1" style={{ color: '#94a3b8' }}>{e.user_name}</p>
+            )}
             <p className="text-xs font-black" style={{ color: rank === 1 ? '#34d399' : '#94a3b8' }}>
               {e.total_points.toFixed(1)}
             </p>
@@ -551,9 +463,20 @@ function TournamentLeaderboard({ tournaments, user }) {
   const selected = tournaments.find((t) => t.id === activeTournamentId)
 
   return (
-    <section>
+    <section
+      className="rounded-2xl p-4"
+      style={{
+        background: `
+          radial-gradient(ellipse at 50% 0%, rgba(250,204,21,.13) 0%, transparent 55%),
+          radial-gradient(ellipse at 15% 80%, rgba(16,185,129,.08) 0%, transparent 45%),
+          radial-gradient(ellipse at 85% 80%, rgba(234,88,12,.07) 0%, transparent 45%),
+          #0a1120
+        `,
+        border: '1px solid rgba(250,204,21,.18)',
+      }}
+    >
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base font-bold text-white">Leaderboard</h2>
+        <h2 className="text-base font-bold text-white">Super Selectors</h2>
         <div className="flex items-center gap-3">
           {tournaments.length > 1 && (
             <select
@@ -599,7 +522,6 @@ function TournamentLeaderboard({ tournaments, user }) {
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { user } = useAuth()

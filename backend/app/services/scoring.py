@@ -73,6 +73,30 @@ def _derive_events(
             "beneficiaries": winning_player_ids,
         })
 
+    # ── Build per-team player sets (shared by SET_WIN and DOMINANT_SET_BONUS) ──
+    team_a_players = {
+        pid for pid, p in all_game_player_map.items()
+        if p.team_id == contest.team_a_id
+    }
+    team_b_players = {
+        pid for pid, p in all_game_player_map.items()
+        if p.team_id == contest.team_b_id
+    }
+
+    # ── SET_WIN ───────────────────────────────────────────────────────────────
+    cfg = SCORING_EVENTS.get("SET_WIN", {})
+    if cfg.get("enabled"):
+        for s in sets:
+            a_pts = s.get("team_a_points", 0)
+            b_pts = s.get("team_b_points", 0)
+            if a_pts != b_pts:
+                set_winner_players = team_a_players if a_pts > b_pts else team_b_players
+                events.append({
+                    "event_type": "SET_WIN",
+                    "base_points": float(cfg["points"]),
+                    "beneficiaries": set_winner_players,
+                })
+
     # ── STRAIGHT_SET_WIN_BONUS ────────────────────────────────────────────────
     cfg = SCORING_EVENTS.get("STRAIGHT_SET_WIN_BONUS", {})
     if cfg.get("enabled") and len(sets) == 2:
@@ -86,15 +110,6 @@ def _derive_events(
     cfg = SCORING_EVENTS.get("DOMINANT_SET_BONUS", {})
     if cfg.get("enabled"):
         threshold = cfg.get("diff_threshold", 10)
-        # Determine which player_ids belong to team_a vs team_b in this game
-        team_a_players = {
-            pid for pid, p in all_game_player_map.items()
-            if p.team_id == contest.team_a_id
-        }
-        team_b_players = {
-            pid for pid, p in all_game_player_map.items()
-            if p.team_id == contest.team_b_id
-        }
         for s in sets:
             a_pts = s.get("team_a_points", 0)
             b_pts = s.get("team_b_points", 0)
@@ -138,6 +153,33 @@ def _derive_events(
                 "base_points": float(small_cfg["points"]),
                 "beneficiaries": winning_player_ids,
             })
+
+    # ── POSITIVE_SHOT / NEGATIVE_SHOT (per player, per set) ──────────────────
+    pos_cfg = SCORING_EVENTS.get("POSITIVE_SHOT", {})
+    neg_cfg = SCORING_EVENTS.get("NEGATIVE_SHOT", {})
+    if pos_cfg.get("enabled") or neg_cfg.get("enabled"):
+        for s in sets:
+            for player_id_str, counts in s.get("shots", {}).items():
+                try:
+                    player_id = uuid.UUID(player_id_str)
+                except (ValueError, AttributeError):
+                    continue
+                if player_id not in all_game_player_map:
+                    continue
+                positive = int(counts.get("positive") or 0)
+                negative = int(counts.get("negative") or 0)
+                if positive > 0 and pos_cfg.get("enabled"):
+                    events.append({
+                        "event_type": "POSITIVE_SHOT",
+                        "base_points": round(positive * float(pos_cfg["points"]), 10),
+                        "beneficiaries": {player_id},
+                    })
+                if negative > 0 and neg_cfg.get("enabled"):
+                    events.append({
+                        "event_type": "NEGATIVE_SHOT",
+                        "base_points": round(negative * float(neg_cfg["points"]), 10),
+                        "beneficiaries": {player_id},
+                    })
 
     return events
 

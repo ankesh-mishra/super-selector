@@ -2,15 +2,17 @@ import uuid
 from collections import defaultdict
 from typing import Annotated, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Player, UserTeamPlayer, UserTeam, User, PlayerScoreEvent
+from app.models import Player, UserTeamPlayer, UserTeam, User, PlayerScoreEvent, Contest
 from app.schemas import (
-    PlayerWithTeamOut, PlayerTrendingOut,
+    PlayerWithTeamOut, PlayerTrendingOut, PlayerByPointsOut,
     PlayerDetailOut, PlayerContestStatsOut, PlayerGameEventOut, PlayerSelectorOut,
 )
 
@@ -18,10 +20,23 @@ router = APIRouter()
 
 
 @router.get("/trending", response_model=list[PlayerTrendingOut])
-async def trending_players(db: Annotated[AsyncSession, Depends(get_db)]):
-    """Players ranked by total selection count across all contests — public, no auth required."""
-    count_result = await db.execute(
+async def trending_players(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tournament_id: Optional[uuid.UUID] = Query(default=None),
+):
+    """Players ranked by total selection count. Optionally scoped to a tournament."""
+    count_q = (
         select(UserTeamPlayer.player_id, func.count(UserTeamPlayer.id).label("cnt"))
+        .join(UserTeam, UserTeam.id == UserTeamPlayer.user_team_id)
+    )
+    if tournament_id:
+        count_q = (
+            count_q
+            .join(Contest, Contest.id == UserTeam.contest_id)
+            .where(Contest.tournament_id == tournament_id)
+        )
+    count_result = await db.execute(
+        count_q
         .group_by(UserTeamPlayer.player_id)
         .order_by(func.count(UserTeamPlayer.id).desc())
         .limit(8)
@@ -48,6 +63,61 @@ async def trending_players(db: Annotated[AsyncSession, Depends(get_db)]):
             continue
         p_out = PlayerTrendingOut.model_validate(player)
         p_out.selection_count = count_map[player_id]
+        out.append(p_out)
+    return out
+
+
+@router.get("/by-points", response_model=list[PlayerByPointsOut])
+async def players_by_points(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tournament_id: Optional[uuid.UUID] = Query(default=None),
+):
+    """All active players ranked by total base points. Optionally scoped to a tournament."""
+    deduped_q = (
+        select(
+            UserTeamPlayer.player_id.label("player_id"),
+            PlayerScoreEvent.base_points.label("base_points"),
+        )
+        .join(PlayerScoreEvent, PlayerScoreEvent.user_team_player_id == UserTeamPlayer.id)
+    )
+    if tournament_id:
+        deduped_q = (
+            deduped_q
+            .join(UserTeam, UserTeam.id == UserTeamPlayer.user_team_id)
+            .join(Contest, Contest.id == UserTeam.contest_id)
+            .where(Contest.tournament_id == tournament_id)
+        )
+    deduped = (
+        deduped_q
+        .distinct(UserTeamPlayer.player_id, PlayerScoreEvent.contest_game_id, PlayerScoreEvent.event_type)
+        .order_by(UserTeamPlayer.player_id, PlayerScoreEvent.contest_game_id, PlayerScoreEvent.event_type)
+    ).subquery()
+
+    pts_subq = (
+        select(deduped.c.player_id, func.sum(deduped.c.base_points).label("total_points"))
+        .group_by(deduped.c.player_id)
+    ).subquery()
+
+    # When filtering by tournament, restrict player list to teams in that tournament.
+    player_q = (
+        select(Player, func.coalesce(pts_subq.c.total_points, 0.0).label("total_points"))
+        .options(selectinload(Player.team))
+        .outerjoin(pts_subq, pts_subq.c.player_id == Player.id)
+        .where(Player.is_active == True)
+    )
+    if tournament_id:
+        teams_subq = (
+            select(Contest.team_a_id.label("team_id")).where(Contest.tournament_id == tournament_id)
+            .union(select(Contest.team_b_id.label("team_id")).where(Contest.tournament_id == tournament_id))
+        ).subquery()
+        player_q = player_q.where(Player.team_id.in_(select(teams_subq.c.team_id)))
+
+    rows = await db.execute(player_q.order_by(func.coalesce(pts_subq.c.total_points, 0.0).desc()))
+
+    out = []
+    for player, total_points in rows:
+        p_out = PlayerByPointsOut.model_validate(player)
+        p_out.total_points = float(total_points)
         out.append(p_out)
     return out
 
@@ -142,6 +212,29 @@ async def get_player_stats(player_id: uuid.UUID, db: Annotated[AsyncSession, Dep
     p_out.contests = contest_stats
     p_out.selectors = selectors
     return p_out
+
+
+@router.get("/{player_id}/photo")
+async def proxy_player_photo(player_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+    """Proxy the player's profile photo from Google Drive, avoiding browser CORS/ORB issues."""
+    result = await db.execute(select(Player.photo_url).where(Player.id == player_id))
+    photo_url = result.scalar_one_or_none()
+    if not photo_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photo for this player")
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
+        try:
+            resp = await client.get(photo_url)
+            resp.raise_for_status()
+        except httpx.HTTPError:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not fetch photo")
+
+    content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+    return Response(
+        content=resp.content,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/{player_id}", response_model=PlayerWithTeamOut)

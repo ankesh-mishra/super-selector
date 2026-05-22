@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +17,16 @@ router = APIRouter()
 @router.get("/trending", response_model=list[ContestCardOut])
 async def trending_contests(db: Annotated[AsyncSession, Depends(get_db)]):
     """Open/live contests with participant counts — sorted by live first, then participants desc, then earliest date."""
+    # Auto-lock any contest whose match_date has passed
+    await db.execute(
+        update(Contest)
+        .where(Contest.match_date <= datetime.now(timezone.utc))
+        .where(Contest.is_locked == False)  # noqa: E712
+        .where(Contest.is_completed == False)  # noqa: E712
+        .values(is_locked=True)
+    )
+    await db.commit()
+
     result = await db.execute(
         select(Contest)
         .options(
