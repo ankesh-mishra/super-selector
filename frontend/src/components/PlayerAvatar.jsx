@@ -15,10 +15,10 @@ export default function PlayerAvatar({ player, size = 'md', className = '' }) {
   const dim = SIZES[size] ?? SIZES.md
   const initial = player?.name?.charAt(0).toUpperCase() ?? '?'
 
-  if (player?.photo_url && player?.id && !imgError) {
+  if (player?.photo_url && !imgError) {
     return (
       <img
-        src={`/api/players/${player.id}/photo`}
+        src={player.photo_url}
         alt={player.name}
         className={`${dim} rounded-full object-cover object-top shrink-0 ${className}`}
         style={{ border: '1px solid rgba(16,185,129,.3)' }}
