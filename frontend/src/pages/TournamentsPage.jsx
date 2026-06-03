@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { tournamentsApi } from '../api/endpoints'
 
 const SPORTS = [
@@ -10,6 +10,7 @@ const SPORTS = [
 
 export default function TournamentsPage() {
   const [sport, setSport] = useState('BADMINTON')
+  const navigate = useNavigate()
 
   const { data: tournaments = [], isLoading } = useQuery({
     queryKey: ['tournaments', sport],
@@ -18,6 +19,7 @@ export default function TournamentsPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <button onClick={() => navigate(-1)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition self-start">← Back</button>
       <h2 className="text-lg font-bold text-white">Tournaments</h2>
 
       {/* Sport tabs */}

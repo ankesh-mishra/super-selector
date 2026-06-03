@@ -45,6 +45,7 @@ class User(Base):
     team_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_scorer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # nullable — Google users have NULL, email/password users have bcrypt hash
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -60,6 +61,7 @@ class Tournament(Base):
     __tablename__ = "tournaments"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     sport: Mapped[SportEnum] = mapped_column(String(20), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -97,6 +99,7 @@ class Team(Base):
     __tablename__ = "teams"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     sport: Mapped[SportEnum | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -114,6 +117,7 @@ class Player(Base):
     __tablename__ = "players"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     team_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"), nullable=False, index=True)
     gender: Mapped[GenderEnum] = mapped_column(String(10), nullable=False)
@@ -137,6 +141,7 @@ class Contest(Base):
     __tablename__ = "contests"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     tournament_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tournaments.id", ondelete="SET NULL"), nullable=True, index=True)
     match_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -228,13 +233,15 @@ class ContestGame(Base):
     __tablename__ = "contest_games"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    external_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     contest_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("contests.id", ondelete="CASCADE"), nullable=False, index=True)
     game_number: Mapped[int | None] = mapped_column(Integer, nullable=True)  # auto-assigned
     game_type: Mapped[GameTypeEnum] = mapped_column(String(10), nullable=False)  # DOUBLES or SINGLES
+    game_code: Mapped[str | None] = mapped_column(String(10), nullable=True)  # e.g. MDA, MDB, MXD
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g. "Men's Doubles B (4 Pointer)"
     # Null until admin enters the result
     winning_team_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
-    # JSONB: {"sets": [{"team_a_points": 21, "team_b_points": 11}, ...]}
+    # JSONB: {"sets": [{"scores": {"<team_a_uuid>": 21, "<team_b_uuid>": 11}, "shots": {...}}, ...]}
     game_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

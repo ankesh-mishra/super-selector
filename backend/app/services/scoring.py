@@ -87,8 +87,9 @@ def _derive_events(
     cfg = SCORING_EVENTS.get("SET_WIN", {})
     if cfg.get("enabled"):
         for s in sets:
-            a_pts = s.get("team_a_points", 0)
-            b_pts = s.get("team_b_points", 0)
+            _sc = s.get("scores", {})
+            a_pts = _sc.get(str(contest.team_a_id), s.get("team_a_points", 0))
+            b_pts = _sc.get(str(contest.team_b_id), s.get("team_b_points", 0))
             if a_pts != b_pts:
                 set_winner_players = team_a_players if a_pts > b_pts else team_b_players
                 events.append({
@@ -111,8 +112,9 @@ def _derive_events(
     if cfg.get("enabled"):
         threshold = cfg.get("diff_threshold", 10)
         for s in sets:
-            a_pts = s.get("team_a_points", 0)
-            b_pts = s.get("team_b_points", 0)
+            _sc = s.get("scores", {})
+            a_pts = _sc.get(str(contest.team_a_id), s.get("team_a_points", 0))
+            b_pts = _sc.get(str(contest.team_b_id), s.get("team_b_points", 0))
             diff = abs(a_pts - b_pts)
             if diff >= threshold:
                 # Award to the side that WON this specific set
@@ -171,13 +173,13 @@ def _derive_events(
                 if positive > 0 and pos_cfg.get("enabled"):
                     events.append({
                         "event_type": "POSITIVE_SHOT",
-                        "base_points": round(positive * float(pos_cfg["points"]), 10),
+                        "base_points": round(positive * float(pos_cfg["points"]), 2),
                         "beneficiaries": {player_id},
                     })
                 if negative > 0 and neg_cfg.get("enabled"):
                     events.append({
                         "event_type": "NEGATIVE_SHOT",
-                        "base_points": round(negative * float(neg_cfg["points"]), 10),
+                        "base_points": round(negative * float(neg_cfg["points"]), 2),
                         "beneficiaries": {player_id},
                     })
 
@@ -255,7 +257,7 @@ async def recalculate_game_scores(
         for player_id in event["beneficiaries"]:
             for utp in utp_by_player.get(player_id, []):
                 multiplier = _get_multiplier(utp)
-                points_awarded = event["base_points"] * multiplier
+                points_awarded = round(event["base_points"] * multiplier, 2)
                 db.add(PlayerScoreEvent(
                     user_team_player_id=utp.id,
                     contest_game_id=game.id,
@@ -295,9 +297,9 @@ async def _refresh_totals(contest_id: uuid.UUID, db: AsyncSession) -> None:
     for ut in user_teams:
         team_total = 0.0
         for utp in ut.players:
-            player_total = sum(e.points_awarded for e in utp.score_events)
+            player_total = round(sum(e.points_awarded for e in utp.score_events), 2)
             utp.points_earned = player_total
             team_total += player_total
-        ut.total_points = team_total
+        ut.total_points = round(team_total, 2)
 
     await db.flush()

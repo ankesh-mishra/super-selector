@@ -70,12 +70,14 @@ function Scorecard({ contest }) {
             {sets.length > 0 ? (
               <div className="flex flex-col gap-1">
                 {sets.map((s, i) => {
-                  const aWon = s.team_a_points > s.team_b_points
+                  const aScore = s.scores?.[contest.team_a_id] ?? s.team_a_points ?? 0
+                  const bScore = s.scores?.[contest.team_b_id] ?? s.team_b_points ?? 0
+                  const aWon = aScore > bScore
                   return (
                     <div key={i} className="grid grid-cols-3 items-center text-xs">
-                      <span className="font-black text-base" style={{ color: aWon ? '#34d399' : '#475569' }}>{s.team_a_points}</span>
+                      <span className="font-black text-base" style={{ color: aWon ? '#34d399' : '#475569' }}>{aScore}</span>
                       <span className="text-center" style={{ color: '#475569' }}>set {i + 1}</span>
-                      <span className="font-black text-base text-right" style={{ color: !aWon ? '#34d399' : '#475569' }}>{s.team_b_points}</span>
+                      <span className="font-black text-base text-right" style={{ color: !aWon ? '#34d399' : '#475569' }}>{bScore}</span>
                     </div>
                   )
                 })}

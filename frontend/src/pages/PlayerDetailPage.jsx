@@ -162,7 +162,7 @@ export default function PlayerDetailPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">
                     <StatusBadge contest={cs} />
-                    <span className="text-sm font-black text-emerald-400 ml-1">{cs.total_base_points.toFixed(1)}</span>
+                    <span className="text-sm font-black text-emerald-400 ml-1">{cs.total_base_points.toFixed(2)}</span>
                     <span className="text-xs" style={{ color: '#475569' }}>pts</span>
                   </div>
                 </div>
@@ -187,8 +187,9 @@ export default function PlayerDetailPage() {
                             <p className="text-[0.65rem] mt-0.5 truncate" style={{ color: '#475569' }}>{ev.game_name}</p>
                           )}
                         </div>
-                        <span className="text-xs font-bold text-white ml-2 shrink-0">
-                          +{ev.points_awarded.toFixed(1)}
+                        <span className="text-xs font-bold ml-2 shrink-0"
+                          style={{ color: ev.points_awarded >= 0 ? '#fff' : '#f87171' }}>
+                          {ev.points_awarded >= 0 ? '+' : ''}{ev.points_awarded.toFixed(2)}
                         </span>
                       </div>
                     ))}
