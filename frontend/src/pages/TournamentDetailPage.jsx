@@ -115,8 +115,13 @@ export default function TournamentDetailPage() {
 
   const allContests = tournament.contests || []
 
-  // Team filter options from tournament teams
-  const teamOptions = (tournament.teams || []).map((t) => t.name).sort()
+  // Team filter options: prefer tournament.teams, fall back to teams extracted from contests
+  const teamOptions = (() => {
+    const fromTournament = (tournament.teams || []).map((t) => t.name)
+    if (fromTournament.length > 0) return [...new Set(fromTournament)].sort()
+    const fromContests = allContests.flatMap((c) => [c.team_a?.name, c.team_b?.name]).filter(Boolean)
+    return [...new Set(fromContests)].sort()
+  })()
 
   const filtered = filterTeam
     ? allContests.filter((c) => c.team_a?.name === filterTeam || c.team_b?.name === filterTeam)

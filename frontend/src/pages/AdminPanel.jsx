@@ -365,23 +365,56 @@ function PlayersTab() {
   )
 }
 
+// ─── Helper: extract unique teams from a contests list ─────────────────────────
+function teamsFromContests(contests, allTeams) {
+  const ids = new Set((contests || []).flatMap((c) => [String(c.team_a_id), String(c.team_b_id)]))
+  return (allTeams || []).filter((t) => ids.has(String(t.id))).sort((a, b) => a.name.localeCompare(b.name))
+}
+
 // ─── Contest Date Editor ──────────────────────────────────────────────────────
-function ContestDateEditor({ contests, qc, setMsg }) {
+function ContestDateEditor({ contests, qc, setMsg, tournaments, allTeams }) {
   const [editId, setEditId] = useState('')
   const [editVal, setEditVal] = useState('')
+  const [filterTournamentId, setFilterTournamentId] = useState('')
+  const [filterTeamId, setFilterTeamId] = useState('')
+
+  const byTournament = (contests || []).filter((c) => {
+    if (!filterTournamentId) return true
+    if (filterTournamentId === '__none__') return !c.tournament_id
+    return c.tournament_id === filterTournamentId
+  })
+  const teamOptions = teamsFromContests(byTournament, allTeams)
+  const filtered = byTournament.filter((c) => {
+    if (c.is_completed) return false
+    if (!filterTeamId) return true
+    return String(c.team_a_id) === filterTeamId || String(c.team_b_id) === filterTeamId
+  })
+
   const editDate = useMutation({
     mutationFn: () => adminApi.updateContest(editId, { match_date: new Date(editVal).toISOString(), is_locked: false }),
     onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Match time updated!') },
+    onError: (e) => setMsg(e.response?.data?.detail || 'Error updating match time', 'error'),
   })
   return (
     <>
+      <Select label="Tournament" value={filterTournamentId} onChange={(e) => { setFilterTournamentId(e.target.value); setFilterTeamId(''); setEditId('') }}>
+        <option value="">— all tournaments —</option>
+        {(tournaments || []).map((t) => <option key={t.id} value={t.id}>{t.sport === 'BADMINTON' ? '🏸' : '🏏'} {t.name}</option>)}
+        <option value="__none__">— no tournament —</option>
+      </Select>
+      {teamOptions.length > 0 && (
+        <Select label="Team" value={filterTeamId} onChange={(e) => { setFilterTeamId(e.target.value); setEditId('') }}>
+          <option value="">— all teams —</option>
+          {teamOptions.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+        </Select>
+      )}
       <Select label="Contest" value={editId} onChange={(e) => {
         setEditId(e.target.value)
-        const c = (contests || []).find((x) => x.id === e.target.value)
+        const c = filtered.find((x) => x.id === e.target.value)
         if (c?.match_date) setEditVal(c.match_date.slice(0, 16))
       }}>
         <option value="">— select contest —</option>
-        {(contests || []).filter((c) => !c.is_completed).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        {filtered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
       {editId && (
         <Input label="New match date/time" type="datetime-local" value={editVal}
@@ -395,22 +428,48 @@ function ContestDateEditor({ contests, qc, setMsg }) {
 }
 
 // ─── Contest Prize Editor ─────────────────────────────────────────────────────
-function ContestPrizeEditor({ contests, qc, setMsg }) {
+function ContestPrizeEditor({ contests, qc, setMsg, tournaments, allTeams }) {
   const [editPrizeId, setEditPrizeId] = useState('')
   const [editPrizeVal, setEditPrizeVal] = useState('Winner Badge')
+  const [filterTournamentId, setFilterTournamentId] = useState('')
+  const [filterTeamId, setFilterTeamId] = useState('')
+
+  const byTournament = (contests || []).filter((c) => {
+    if (!filterTournamentId) return true
+    if (filterTournamentId === '__none__') return !c.tournament_id
+    return c.tournament_id === filterTournamentId
+  })
+  const teamOptions = teamsFromContests(byTournament, allTeams)
+  const filtered = byTournament.filter((c) => {
+    if (!filterTeamId) return true
+    return String(c.team_a_id) === filterTeamId || String(c.team_b_id) === filterTeamId
+  })
+
   const editPrize = useMutation({
     mutationFn: () => adminApi.updateContest(editPrizeId, { prize: editPrizeVal }),
     onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Prize updated!') },
+    onError: (e) => setMsg(e.response?.data?.detail || 'Error updating prize', 'error'),
   })
   return (
     <>
+      <Select label="Tournament" value={filterTournamentId} onChange={(e) => { setFilterTournamentId(e.target.value); setFilterTeamId(''); setEditPrizeId('') }}>
+        <option value="">— all tournaments —</option>
+        {(tournaments || []).map((t) => <option key={t.id} value={t.id}>{t.sport === 'BADMINTON' ? '🏸' : '🏏'} {t.name}</option>)}
+        <option value="__none__">— no tournament —</option>
+      </Select>
+      {teamOptions.length > 0 && (
+        <Select label="Team" value={filterTeamId} onChange={(e) => { setFilterTeamId(e.target.value); setEditPrizeId('') }}>
+          <option value="">— all teams —</option>
+          {teamOptions.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+        </Select>
+      )}
       <Select label="Contest" value={editPrizeId} onChange={(e) => {
         setEditPrizeId(e.target.value)
-        const c = (contests || []).find((x) => x.id === e.target.value)
+        const c = filtered.find((x) => x.id === e.target.value)
         setEditPrizeVal(c?.prize || 'Winner Badge')
       }}>
         <option value="">— select contest —</option>
-        {(contests || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        {filtered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
       {editPrizeId && (
         <Input label="Prize" value={editPrizeVal} onChange={(e) => setEditPrizeVal(e.target.value)} />
@@ -422,51 +481,64 @@ function ContestPrizeEditor({ contests, qc, setMsg }) {
 
 // ─── Contests Tab ─────────────────────────────────────────────────────────────
 function ContestsTab() {
+  const [subTab, setSubTab] = useState('create')
   const qc = useQueryClient()
-  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '', prize: 'Winner Badge' })
-  const [lockId, setLockId] = useState('')
-  const [lockTournamentId, setLockTournamentId] = useState('')
-  const [completeId, setCompleteId] = useState('')
-  const [completeTournamentId, setCompleteTournamentId] = useState('')
-  const [msg, setMsg] = useState('')
+  const [msg, setMsg] = useState({ text: '', type: 'success' })
+
+  const notify = (text, type = 'success') => {
+    setMsg({ text, type })
+    setTimeout(() => setMsg({ text: '', type: 'success' }), 3000)
+  }
 
   const { data: allTeams } = useQuery({ queryKey: ['teams'], queryFn: () => teamsApi.list().then((r) => r.data) })
   const { data: contests } = useQuery({ queryKey: ['contests'], queryFn: () => contestsApi.list().then((r) => r.data) })
   const { data: tournaments } = useQuery({ queryKey: ['all-tournaments'], queryFn: () => tournamentsApi.list().then((r) => r.data) })
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-2">
+        {[['create', 'Create'], ['status', 'Status'], ['edit', 'Edit']].map(([key, label]) => (
+          <button key={key} onClick={() => { setSubTab(key); setMsg({ text: '', type: 'success' }) }}
+            className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition"
+            style={subTab === key
+              ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+              : { background: 'var(--muted)', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }
+            }>{label}</button>
+        ))}
+      </div>
+      {msg.text && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium"
+          style={msg.type === 'success'
+            ? { background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.35)', color: '#34d399' }
+            : { background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}>
+          <span>{msg.type === 'success' ? '✓' : '✕'}</span>
+          {msg.text}
+        </div>
+      )}
+      {subTab === 'create' && <ContestCreateSubTab allTeams={allTeams} tournaments={tournaments} qc={qc} setMsg={notify} />}
+      {subTab === 'status' && <ContestStatusSubTab contests={contests} tournaments={tournaments} allTeams={allTeams} qc={qc} setMsg={notify} />}
+      {subTab === 'edit'   && <ContestEditSubTab   contests={contests} tournaments={tournaments} allTeams={allTeams} qc={qc} setMsg={notify} />}
+    </div>
+  )
+}
+
+function ContestCreateSubTab({ allTeams, tournaments, qc, setMsg }) {
+  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '', prize: 'Winner Badge' })
   const { data: tournamentDetail } = useQuery({
     queryKey: ['admin-tournament', form.tournament_id],
     queryFn: () => adminApi.getTournament(form.tournament_id).then((r) => r.data),
     enabled: !!form.tournament_id,
   })
-
-  // Teams available for this contest — restricted to tournament's teams if tournament selected
-  const availableTeams = form.tournament_id && tournamentDetail
-    ? (tournamentDetail.teams || [])
-    : (allTeams || [])
-
-  // Preview the auto-generated name
+  const availableTeams = form.tournament_id && tournamentDetail ? (tournamentDetail.teams || []) : (allTeams || [])
   const teamA = availableTeams.find((t) => t.id === form.team_a_id)
   const teamB = availableTeams.find((t) => t.id === form.team_b_id)
   const previewName = teamA && teamB ? `${teamA.name} v ${teamB.name}` : null
-
   const create = useMutation({
     mutationFn: () => adminApi.createContest({ ...form, tournament_id: form.tournament_id || null }),
     onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Contest created!') },
-    onError: (e) => setMsg(e.response?.data?.detail || 'Error'),
+    onError: (e) => setMsg(e.response?.data?.detail || 'Error', 'error'),
   })
-
-  const lock = useMutation({
-    mutationFn: (id) => adminApi.updateContest(id, { is_locked: true }),
-    onSuccess: () => { qc.invalidateQueries(['contests']); setLockId(''); setLockTournamentId(''); setMsg('Locked!') },
-  })
-
-  const markComplete = useMutation({
-    mutationFn: (id) => adminApi.updateContest(id, { is_completed: true }),
-    onSuccess: () => { qc.invalidateQueries(['contests']); setCompleteId(''); setCompleteTournamentId(''); setMsg('Marked as completed!') },
-  })
-
   const canCreate = form.team_a_id && form.team_b_id && form.team_a_id !== form.team_b_id && form.match_date && form.registration_cutoff
-
   return (
     <div className="flex flex-col gap-3">
       <Select label="Tournament (optional)" value={form.tournament_id} onChange={(e) => setForm({ ...form, tournament_id: e.target.value, team_a_id: '', team_b_id: '' })}>
@@ -481,74 +553,108 @@ function ContestsTab() {
         <option value="">— select —</option>
         {availableTeams.filter((t) => t.id !== form.team_a_id).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
       </Select>
-      {previewName && (
-        <p className="text-xs text-primary bg-accent rounded px-2 py-1">
-          Contest name: <strong>{previewName}</strong>
-        </p>
-      )}
-      <Input label="Match date" type="datetime-local" value={form.match_date}
-        onChange={(e) => setForm({ ...form, match_date: e.target.value })} />
-      <Input label="Registration cutoff" type="datetime-local" value={form.registration_cutoff}
-        onChange={(e) => setForm({ ...form, registration_cutoff: e.target.value })} />
-      <Input label="Prize" value={form.prize}
-        onChange={(e) => setForm({ ...form, prize: e.target.value })} />
+      {previewName && <p className="text-xs text-primary bg-accent rounded px-2 py-1">Contest name: <strong>{previewName}</strong></p>}
+      <Input label="Match date" type="datetime-local" value={form.match_date} onChange={(e) => setForm({ ...form, match_date: e.target.value })} />
+      <Input label="Registration cutoff" type="datetime-local" value={form.registration_cutoff} onChange={(e) => setForm({ ...form, registration_cutoff: e.target.value })} />
+      <Input label="Prize" value={form.prize} onChange={(e) => setForm({ ...form, prize: e.target.value })} />
       <Btn disabled={!canCreate || create.isPending} onClick={() => create.mutate()}>Create Contest</Btn>
+    </div>
+  )
+}
 
-      <hr className="my-2" />
+function ContestStatusSubTab({ contests, tournaments, allTeams, qc, setMsg }) {
+  const [lockId, setLockId] = useState('')
+  const [lockTournamentId, setLockTournamentId] = useState('')
+  const [lockTeamId, setLockTeamId] = useState('')
+  const [completeId, setCompleteId] = useState('')
+  const [completeTournamentId, setCompleteTournamentId] = useState('')
+  const [completeTeamId, setCompleteTeamId] = useState('')
+
+  const lock = useMutation({
+    mutationFn: (id) => adminApi.updateContest(id, { is_locked: true }),
+    onSuccess: () => { qc.invalidateQueries(['contests']); setLockId(''); setLockTournamentId(''); setLockTeamId(''); setMsg('Contest locked!') },
+    onError: (e) => setMsg(e.response?.data?.detail || 'Error locking contest', 'error'),
+  })
+  const markComplete = useMutation({
+    mutationFn: (id) => adminApi.updateContest(id, { is_completed: true }),
+    onSuccess: () => { qc.invalidateQueries(['contests']); setCompleteId(''); setCompleteTournamentId(''); setCompleteTeamId(''); setMsg('Contest marked as completed!') },
+    onError: (e) => setMsg(e.response?.data?.detail || 'Error completing contest', 'error'),
+  })
+
+  const lockByTournament = (contests || []).filter((c) => {
+    if (!lockTournamentId) return true
+    if (lockTournamentId === '__none__') return !c.tournament_id
+    return c.tournament_id === lockTournamentId
+  })
+  const lockTeamOptions = teamsFromContests(lockByTournament, allTeams)
+  const lockFiltered = lockByTournament.filter((c) => {
+    if (c.is_locked) return false
+    if (!lockTeamId) return true
+    return String(c.team_a_id) === lockTeamId || String(c.team_b_id) === lockTeamId
+  })
+
+  const completeByTournament = (contests || []).filter((c) => {
+    if (!completeTournamentId) return true
+    if (completeTournamentId === '__none__') return !c.tournament_id
+    return c.tournament_id === completeTournamentId
+  })
+  const completeTeamOptions = teamsFromContests(completeByTournament, allTeams)
+  const completeFiltered = completeByTournament.filter((c) => {
+    if (c.is_completed || !c.is_locked) return false
+    if (!completeTeamId) return true
+    return String(c.team_a_id) === completeTeamId || String(c.team_b_id) === completeTeamId
+  })
+
+  return (
+    <div className="flex flex-col gap-3">
       <p className="text-xs font-semibold text-gray-500 uppercase">Lock a contest</p>
-      <Select label="Tournament" value={lockTournamentId} onChange={(e) => { setLockTournamentId(e.target.value); setLockId('') }}>
+      <Select label="Tournament" value={lockTournamentId} onChange={(e) => { setLockTournamentId(e.target.value); setLockTeamId(''); setLockId('') }}>
         <option value="">— all tournaments —</option>
         {tournaments?.map((t) => <option key={t.id} value={t.id}>{t.sport === 'BADMINTON' ? '🏸' : '🏏'} {t.name}</option>)}
         <option value="__none__">— no tournament —</option>
       </Select>
-      {(() => {
-        const filtered = (contests || []).filter((c) => {
-          if (c.is_locked) return false
-          if (!lockTournamentId) return true
-          if (lockTournamentId === '__none__') return !c.tournament_id
-          return c.tournament_id === lockTournamentId
-        })
-        return (
-          <Select label="Contest" value={lockId} onChange={(e) => setLockId(e.target.value)} disabled={!lockTournamentId}>
-            <option value="">— select contest —</option>
-            {filtered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        )
-      })()}
+      {lockTeamOptions.length > 0 && (
+        <Select label="Team" value={lockTeamId} onChange={(e) => { setLockTeamId(e.target.value); setLockId('') }}>
+          <option value="">— all teams —</option>
+          {lockTeamOptions.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+        </Select>
+      )}
+      <Select label="Contest" value={lockId} onChange={(e) => setLockId(e.target.value)} disabled={!lockTournamentId}>
+        <option value="">— select contest —</option>
+        {lockFiltered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
       <Btn disabled={!lockId || lock.isPending} onClick={() => lock.mutate(lockId)}>Lock Contest</Btn>
 
       <hr className="my-2" />
-      <p className="text-xs font-semibold text-gray-500 uppercase">Mark contest as completed</p>
-      <Select label="Tournament" value={completeTournamentId} onChange={(e) => { setCompleteTournamentId(e.target.value); setCompleteId('') }}>
+      <p className="text-xs font-semibold text-gray-500 uppercase">Mark as completed</p>
+      <Select label="Tournament" value={completeTournamentId} onChange={(e) => { setCompleteTournamentId(e.target.value); setCompleteTeamId(''); setCompleteId('') }}>
         <option value="">— all tournaments —</option>
         {tournaments?.map((t) => <option key={t.id} value={t.id}>{t.sport === 'BADMINTON' ? '🏸' : '🏏'} {t.name}</option>)}
         <option value="__none__">— no tournament —</option>
       </Select>
-      {(() => {
-        const filtered = (contests || []).filter((c) => {
-          if (c.is_completed) return false
-          if (!c.is_locked) return false  // must be locked first
-          if (!completeTournamentId) return true
-          if (completeTournamentId === '__none__') return !c.tournament_id
-          return c.tournament_id === completeTournamentId
-        })
-        return (
-          <Select label="Contest" value={completeId} onChange={(e) => setCompleteId(e.target.value)} disabled={!completeTournamentId}>
-            <option value="">— select contest —</option>
-            {filtered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        )
-      })()}
+      {completeTeamOptions.length > 0 && (
+        <Select label="Team" value={completeTeamId} onChange={(e) => { setCompleteTeamId(e.target.value); setCompleteId('') }}>
+          <option value="">— all teams —</option>
+          {completeTeamOptions.map((t) => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
+        </Select>
+      )}
+      <Select label="Contest" value={completeId} onChange={(e) => setCompleteId(e.target.value)} disabled={!completeTournamentId}>
+        <option value="">— select contest —</option>
+        {completeFiltered.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
       <Btn disabled={!completeId || markComplete.isPending} onClick={() => markComplete.mutate(completeId)}>Mark as Completed</Btn>
+    </div>
+  )
+}
 
-      <hr className="my-2" />
+function ContestEditSubTab({ contests, tournaments, allTeams, qc, setMsg }) {
+  return (
+    <div className="flex flex-col gap-3">
       <p className="text-xs font-semibold text-gray-500 uppercase">Change match time</p>
-      <ContestDateEditor contests={contests} qc={qc} setMsg={setMsg} />
-
+      <ContestDateEditor contests={contests} qc={qc} setMsg={setMsg} tournaments={tournaments} allTeams={allTeams} />
       <hr className="my-2" />
-      <p className="text-xs font-semibold text-gray-500 uppercase">Edit contest prize</p>
-      <ContestPrizeEditor contests={contests} qc={qc} setMsg={setMsg} />
-      {msg && <p className="text-sm text-primary">{msg}</p>}
+      <p className="text-xs font-semibold text-gray-500 uppercase">Edit prize</p>
+      <ContestPrizeEditor contests={contests} qc={qc} setMsg={setMsg} tournaments={tournaments} allTeams={allTeams} />
     </div>
   )
 }
@@ -556,19 +662,20 @@ function ContestsTab() {
 // ─── Score Entry Tab ──────────────────────────────────────────────────────────
 
 const GAME_NAME_PRESETS = [
-  "Men's Doubles A (5 Pointer)",
-  "Men's Doubles B (4 Pointer)",
-  "Men's Doubles C (3 Pointer)",
-  "Men's Doubles D (2 Pointer)",
-  "Men's Singles (3 Pointer)",
-  "Women's Doubles (4 Pointer)",
-  "Mixed Doubles (4 Pointer)",
+  { code: 'MDA', name: "Men's Doubles A", label: "Men's Doubles A (5 Pointer)", type: 'DOUBLES' },
+  { code: 'MDB', name: "Men's Doubles B", label: "Men's Doubles B (4 Pointer)", type: 'DOUBLES' },
+  { code: 'MDC', name: "Men's Doubles C", label: "Men's Doubles C (3 Pointer)", type: 'DOUBLES' },
+  { code: 'MDD', name: "Men's Doubles D", label: "Men's Doubles D (2 Pointer)", type: 'DOUBLES' },
+  { code: 'MS',  name: "Men's Singles",   label: "Men's Singles (3 Pointer)",   type: 'SINGLES' },
+  { code: 'WD',  name: "Women's Doubles", label: "Women's Doubles (4 Pointer)", type: 'DOUBLES' },
+  { code: 'MXD', name: 'Mixed Doubles',   label: 'Mixed Doubles (4 Pointer)',   type: 'DOUBLES' },
 ]
 
 function emptyForm() {
   return {
     gameType: 'DOUBLES',
     gameName: '',
+    gameCode: '',
     sel: { a1: '', a2: '', b1: '', b2: '' },
     winningTeamId: '',
     sets: [
@@ -585,6 +692,7 @@ function formFromGame(g, contest) {
   return {
     gameType: g.game_type,
     gameName: g.name || '',
+    gameCode: g.game_code || '',
     winningTeamId: g.winning_team_id || '',
     sel: {
       a1: aSide[0]?.player_id || '',
@@ -593,8 +701,8 @@ function formFromGame(g, contest) {
       b2: bSide[1]?.player_id || '',
     },
     sets: g.game_details?.sets?.map((s) => ({
-      team_a_points: String(s.team_a_points),
-      team_b_points: String(s.team_b_points),
+      team_a_points: String(s.scores?.[contest.team_a_id] ?? s.team_a_points ?? ''),
+      team_b_points: String(s.scores?.[contest.team_b_id] ?? s.team_b_points ?? ''),
       shots: Object.fromEntries(
         Object.entries(s.shots || {}).map(([pid, v]) => [
           pid,
@@ -613,16 +721,19 @@ function getPlayerIds(form) {
   return [form.sel.a1, form.sel.a2, form.sel.b1, form.sel.b2].filter(Boolean)
 }
 
-function buildPayload(form) {
+function buildPayload(form, contest) {
   const playerIds = getPlayerIds(form)
   return {
     winning_team_id: form.winningTeamId,
     name: form.gameName || null,
+    game_code: form.gameCode || null,
     player_ids: playerIds,
     game_details: {
       sets: form.sets.filter((s) => s.team_a_points !== '').map((s) => ({
-        team_a_points: Number(s.team_a_points),
-        team_b_points: Number(s.team_b_points),
+        scores: {
+          [contest.team_a_id]: Number(s.team_a_points),
+          [contest.team_b_id]: Number(s.team_b_points),
+        },
         shots: Object.fromEntries(
           playerIds
             .filter((pid) => s.shots?.[pid])
@@ -660,21 +771,17 @@ function ScoreFormFields({ form, patch, contest, playersA, playersB, availablePr
 
   return (
     <div className="flex flex-col gap-3">
-      <Select label="Game type" value={form.gameType}
-        onChange={(e) => patch({ gameType: e.target.value, sel: { a1: '', a2: '', b1: '', b2: '' } })}>
-        <option value="DOUBLES">Doubles</option>
-        <option value="SINGLES">Singles</option>
+      <Select label="Game" value={form.gameCode}
+        onChange={(e) => {
+          const preset = GAME_NAME_PRESETS.find((p) => p.code === e.target.value)
+          if (preset) patch({ gameCode: preset.code, gameName: preset.label, gameType: preset.type, sel: { a1: '', a2: '', b1: '', b2: '' } })
+          else patch({ gameCode: '', gameName: '' })
+        }}>
+        <option value="">— select game —</option>
+        {(availablePresets || GAME_NAME_PRESETS).map((p) => (
+          <option key={p.code} value={p.code}>{p.label}</option>
+        ))}
       </Select>
-      <Field label="Game name">
-        <input list="game-name-presets"
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          placeholder="e.g. Men's Doubles B (4 Pointer)"
-          value={form.gameName}
-          onChange={(e) => patch({ gameName: e.target.value })} />
-        <datalist id="game-name-presets">
-          {(availablePresets || GAME_NAME_PRESETS).map((n) => <option key={n} value={n} />)}
-        </datalist>
-      </Field>
       <div className="flex flex-col gap-2 bg-muted rounded-lg p-3">
         <p className="text-xs font-semibold text-gray-500 uppercase">Players</p>
         <div className="grid grid-cols-2 gap-3">
@@ -779,15 +886,16 @@ function AddGameSubTab({ contest, contestId, playersA, playersB }) {
   const qc = useQueryClient()
   const patch = (fields) => setForm((f) => ({ ...f, ...fields }))
 
-  const usedNames = new Set((contest.games || []).map((g) => g.name).filter(Boolean))
-  const availablePresets = GAME_NAME_PRESETS.filter((n) => !usedNames.has(n))
+  const usedCodes = new Set((contest.games || []).map((g) => g.game_code).filter(Boolean))
+  const availablePresets = GAME_NAME_PRESETS.filter((p) => !usedCodes.has(p.code))
 
   const requiredPlayers = form.gameType === 'SINGLES' ? 2 : 4
-  const canSave = form.winningTeamId && getPlayerIds(form).length === requiredPlayers
+  const canSave = form.gameCode && form.winningTeamId && getPlayerIds(form).length === requiredPlayers
 
   const createGame = useMutation({
     mutationFn: () => adminApi.createGame(contestId, {
       game_type: form.gameType,
+      game_code: form.gameCode || null,
       name: form.gameName || null,
       player_ids: getPlayerIds(form),
     }),
@@ -796,7 +904,7 @@ function AddGameSubTab({ contest, contestId, playersA, playersB }) {
   })
 
   const patchScore = useMutation({
-    mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(form)),
+    mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(form, contest)),
     onSuccess: () => { qc.invalidateQueries(['contest', contestId]); setSaved(true) },
     onError: (e) => setErrMsg(e.response?.data?.detail || 'Error saving score'),
   })
@@ -856,10 +964,10 @@ function ViewGamesSubTab({ contest, contestId, playersA, playersB }) {
   }
 
   const requiredEdit = editForm.gameType === 'SINGLES' ? 2 : 4
-  const canSaveEdit = editForm.winningTeamId && getPlayerIds(editForm).length === requiredEdit
+  const canSaveEdit = editForm.gameCode && editForm.winningTeamId && getPlayerIds(editForm).length === requiredEdit
 
   const updateScore = useMutation({
-    mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(editForm)),
+    mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(editForm, contest)),
     onSuccess: (_, gameId) => { qc.invalidateQueries(['contest', contestId]); setSavedId(gameId); setEditingId(null) },
     onError: (e) => setErrMsg(e.response?.data?.detail || 'Error updating score'),
   })
@@ -897,6 +1005,12 @@ function ViewGamesSubTab({ contest, contestId, playersA, playersB }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-bold text-white">{g.name || 'Unnamed Game'}</span>
+                {g.game_code && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold font-mono"
+                    style={{ background: 'rgba(99,102,241,.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,.3)' }}>
+                    {g.game_code}
+                  </span>
+                )}
                 <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                   style={{ background: 'rgba(16,185,129,.12)', color: '#34d399', border: '1px solid rgba(16,185,129,.25)' }}>
                   {g.game_type === 'DOUBLES' ? '2v2' : '1v1'}
@@ -997,6 +1111,7 @@ function ViewGamesSubTab({ contest, contestId, playersA, playersB }) {
 function ScoreEntryTab() {
   const [subTab, setSubTab] = useState('view')
   const [tournamentId, setTournamentId] = useState('')
+  const [teamId, setTeamId] = useState('')
   const [contestId, setContestId] = useState('')
 
   const { data: tournaments } = useQuery({
@@ -1009,7 +1124,17 @@ function ScoreEntryTab() {
     queryFn: () => contestsApi.list().then((r) => r.data),
   })
 
-  const tournamentContests = (allContests || []).filter((c) => c.tournament_id === tournamentId)
+  const { data: allTeams } = useQuery({
+    queryKey: ['teams'],
+    queryFn: () => teamsApi.list().then((r) => r.data),
+  })
+
+  const byTournament = (allContests || []).filter((c) => c.tournament_id === tournamentId)
+  const teamOptions = teamsFromContests(byTournament, allTeams)
+
+  const tournamentContests = byTournament.filter((c) =>
+    !teamId || String(c.team_a_id) === teamId || String(c.team_b_id) === teamId
+  )
 
   const { data: contest } = useQuery({
     queryKey: ['contest', contestId],
@@ -1046,12 +1171,23 @@ function ScoreEntryTab() {
 
       {/* Shared: Tournament */}
       <Select label="Tournament" value={tournamentId}
-        onChange={(e) => { setTournamentId(e.target.value); setContestId('') }}>
+        onChange={(e) => { setTournamentId(e.target.value); setTeamId(''); setContestId('') }}>
         <option value="">— select tournament —</option>
         {tournaments?.map((t) => (
           <option key={t.id} value={t.id}>{t.sport === 'BADMINTON' ? '🏸' : '🏏'} {t.name}</option>
         ))}
       </Select>
+
+      {/* Shared: Team filter */}
+      {tournamentId && teamOptions.length > 0 && (
+        <Select label="Filter by Team" value={teamId}
+          onChange={(e) => { setTeamId(e.target.value); setContestId('') }}>
+          <option value="">— all teams —</option>
+          {teamOptions.map((t) => (
+            <option key={t.id} value={String(t.id)}>{t.name}</option>
+          ))}
+        </Select>
+      )}
 
       {/* Shared: Contest */}
       {tournamentId && (

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import require_admin
+from app.dependencies import require_admin, require_scorer_or_admin
 from app.models import (
     Contest, ContestGame, ContestGamePlayer, Player, PlayerScoreEvent, Team, Tournament,
     TournamentTeam, User, UserTeam, UserTeamPlayer
@@ -16,11 +16,31 @@ from app.models import (
 from app.schemas import (
     ContestCreate, ContestGameCreate, ContestGameOut, ContestGameUpdate,
     ContestOut, PlayerCreate, PlayerOut, PlayerUpdate, PlayerWithTeamOut,
-    TeamCreate, TeamOut, TournamentCreate, TournamentDetailOut, TournamentOut, TournamentUpdate, UserTeamOut,
+    TeamCreate, TeamOut, TeamUpdate, TournamentCreate, TournamentDetailOut, TournamentOut, TournamentUpdate, UserTeamOut,
 )
 from app.services.scoring import recalculate_game_scores, recalculate_contest_totals
 
 router = APIRouter()
+
+# ──────────────────────────────────────────────
+# ID resolver — accepts UUID string or external_id
+# ──────────────────────────────────────────────
+
+async def resolve_to_uuid(db: AsyncSession, model, value: str) -> uuid.UUID:
+    """Resolve a value that is either a UUID string or an external_id to a UUID."""
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        pass
+    result = await db.execute(select(model).where(model.external_id == value))
+    obj = result.scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{model.__tablename__} with external_id '{value}' not found",
+        )
+    return obj.id
+
 
 # ──────────────────────────────────────────────
 # Tournaments
@@ -151,8 +171,26 @@ async def create_team(
     existing = await db.execute(select(Team).where(Team.name == body.name))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Team name already exists")
-    team = Team(name=body.name, sport=body.sport)
+    team = Team(name=body.name, sport=body.sport, external_id=body.external_id)
     db.add(team)
+    await db.commit()
+    await db.refresh(team)
+    return team
+
+
+@router.patch("/teams/{team_id}", response_model=TeamOut)
+async def update_team(
+    team_id: uuid.UUID,
+    body: TeamUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _admin: Annotated[User, Depends(require_admin)],
+):
+    result = await db.execute(select(Team).where(Team.id == team_id))
+    team = result.scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    for key, value in body.model_dump(exclude_none=True).items():
+        setattr(team, key, value)
     await db.commit()
     await db.refresh(team)
     return team
@@ -177,6 +215,7 @@ async def create_player(
         bid_points=bid_points,
         is_real_captain=body.is_real_captain,
         is_active=body.is_active,
+        external_id=body.external_id,
     )
     db.add(player)
     await db.commit()
@@ -294,7 +333,7 @@ async def create_game(
     contest_id: uuid.UUID,
     body: ContestGameCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _user: Annotated[User, Depends(require_scorer_or_admin)],
 ):
     result = await db.execute(select(Contest).where(Contest.id == contest_id))
     if result.scalar_one_or_none() is None:
@@ -310,7 +349,9 @@ async def create_game(
         contest_id=contest_id,
         game_number=next_number,
         game_type=body.game_type,
+        game_code=body.game_code,
         name=body.name,
+        external_id=body.external_id,
     )
     db.add(game)
     await db.flush()
@@ -335,33 +376,53 @@ async def create_game(
 
 @router.patch("/contests/{contest_id}/games/{game_id}", response_model=ContestGameOut)
 async def update_game_score(
-    contest_id: uuid.UUID,
-    game_id: uuid.UUID,
+    contest_id: str,
+    game_id: str,
     body: ContestGameUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _user: Annotated[User, Depends(require_scorer_or_admin)],
 ):
+    # Resolve path params (UUID string or external_id)
+    resolved_contest_id = await resolve_to_uuid(db, Contest, contest_id)
+    resolved_game_id = await resolve_to_uuid(db, ContestGame, game_id)
+
     result = await db.execute(
         select(ContestGame)
         .options(selectinload(ContestGame.game_players).selectinload(ContestGamePlayer.player))
-        .where(ContestGame.id == game_id, ContestGame.contest_id == contest_id)
+        .where(ContestGame.id == resolved_game_id, ContestGame.contest_id == resolved_contest_id)
     )
     game = result.scalar_one_or_none()
     if game is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Game not found")
 
-    game.winning_team_id = body.winning_team_id
-    game.game_details = body.game_details
+    # Resolve winning_team_id (UUID string or external_id)
+    game.winning_team_id = await resolve_to_uuid(db, Team, body.winning_team_id)
+
+    # Resolve team IDs inside game_details.sets[].scores dict keys
+    resolved_details = body.game_details
+    if "sets" in resolved_details:
+        resolved_sets = []
+        for s in resolved_details["sets"]:
+            resolved_scores = {}
+            for k, v in s.get("scores", {}).items():
+                resolved_scores[str(await resolve_to_uuid(db, Team, k))] = v
+            resolved_sets.append({**s, "scores": resolved_scores})
+        resolved_details = {**resolved_details, "sets": resolved_sets}
+    game.game_details = resolved_details
+
     if body.name is not None:
         game.name = body.name
+    if body.game_code is not None:
+        game.game_code = body.game_code
     game.updated_at = datetime.now(timezone.utc)
 
-    # Optionally update which players played
+    # Optionally update which players played (UUID strings or external_ids)
     if body.player_ids is not None:
         await db.execute(
             delete(ContestGamePlayer).where(ContestGamePlayer.contest_game_id == game.id)
         )
-        for pid in body.player_ids:
+        for pid_str in body.player_ids:
+            pid = await resolve_to_uuid(db, Player, pid_str)
             db.add(ContestGamePlayer(contest_game_id=game.id, player_id=pid))
         await db.flush()
 
@@ -390,7 +451,7 @@ async def delete_game(
     contest_id: uuid.UUID,
     game_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _admin: Annotated[User, Depends(require_admin)],
+    _user: Annotated[User, Depends(require_scorer_or_admin)],
 ):
     result = await db.execute(
         select(ContestGame).where(ContestGame.id == game_id, ContestGame.contest_id == contest_id)

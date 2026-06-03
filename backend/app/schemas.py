@@ -52,12 +52,19 @@ class UserProfileUpdate(BaseModel):
 class TeamCreate(BaseModel):
     name: str
     sport: Optional[SportEnum] = None
+    external_id: Optional[str] = None
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class TeamOut(BaseModel):
     id: uuid.UUID
     name: str
     sport: Optional[SportEnum] = None
+    external_id: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -74,6 +81,7 @@ class TournamentCreate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     is_active: bool = True
+    external_id: Optional[str] = None
 
 
 class TournamentUpdate(BaseModel):
@@ -82,6 +90,7 @@ class TournamentUpdate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     is_active: Optional[bool] = None
+    external_id: Optional[str] = None
 
 
 class TournamentOut(BaseModel):
@@ -92,6 +101,7 @@ class TournamentOut(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     is_active: bool
+    external_id: Optional[str] = None
     created_at: datetime
     total_games: int = 0
 
@@ -114,6 +124,7 @@ class PlayerCreate(BaseModel):
     bid_points: int = 0
     is_real_captain: bool = False
     is_active: bool = True
+    external_id: Optional[str] = None
 
 
 class PlayerUpdate(BaseModel):
@@ -123,6 +134,7 @@ class PlayerUpdate(BaseModel):
     is_real_captain: Optional[bool] = None
     is_active: Optional[bool] = None
     photo_url: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class PlayerOut(BaseModel):
@@ -134,6 +146,7 @@ class PlayerOut(BaseModel):
     is_real_captain: bool
     is_active: bool
     photo_url: Optional[str] = None
+    external_id: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -195,6 +208,7 @@ class ContestCreate(BaseModel):
     match_date: datetime
     registration_cutoff: datetime
     prize: str = 'Winner Badge'
+    external_id: Optional[str] = None
 
 
 class ContestUpdate(BaseModel):
@@ -204,6 +218,7 @@ class ContestUpdate(BaseModel):
     is_locked: Optional[bool] = None
     is_completed: Optional[bool] = None
     prize: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class ContestCardOut(BaseModel):
@@ -236,6 +251,7 @@ class ContestOut(BaseModel):
     is_locked: bool
     is_completed: bool
     prize: str = 'Winner Badge'
+    external_id: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -335,15 +351,19 @@ class MyContestOut(BaseModel):
 
 class ContestGameCreate(BaseModel):
     game_type: GameTypeEnum
+    game_code: Optional[str] = None
     name: Optional[str] = None
     player_ids: list[uuid.UUID]
+    external_id: Optional[str] = None
 
 
 class ContestGameUpdate(BaseModel):
-    winning_team_id: uuid.UUID
-    game_details: dict  # {"sets": [{"team_a_points": 21, "team_b_points": 11}, ...]}
-    player_ids: Optional[list[uuid.UUID]] = None  # allow updating players if needed
+    winning_team_id: str  # UUID string or external_id
+    game_details: dict  # {"sets": [{"scores": {"<team_uuid_or_ext_id>": 21, ...}, "shots": {...}}, ...]}
+    player_ids: Optional[list[str]] = None  # UUID strings or external_ids; allow updating players if needed
+    game_code: Optional[str] = None
     name: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class ContestGamePlayerOut(BaseModel):
@@ -358,9 +378,11 @@ class ContestGameOut(BaseModel):
     contest_id: uuid.UUID
     game_number: Optional[int] = None
     game_type: GameTypeEnum
+    game_code: Optional[str] = None
     name: Optional[str] = None
     winning_team_id: Optional[uuid.UUID]
     game_details: Optional[dict]
+    external_id: Optional[str] = None
     created_at: datetime
     players: list[ContestGamePlayerOut] = Field(default=[], validation_alias="game_players")
 

@@ -49,6 +49,14 @@ async def require_admin(
     return current_user
 
 
+async def require_scorer_or_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    if not current_user.is_admin and not current_user.is_scorer:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Scorer or admin access required")
+    return current_user
+
+
 async def get_optional_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
