@@ -16,7 +16,7 @@ from app.models import (
 from app.schemas import (
     ContestCreate, ContestGameCreate, ContestGameOut, ContestGameUpdate,
     ContestOut, PlayerCreate, PlayerOut, PlayerUpdate, PlayerWithTeamOut,
-    TeamCreate, TeamOut, TeamUpdate, TournamentCreate, TournamentDetailOut, TournamentOut, TournamentUpdate, UserTeamOut,
+    TeamCreate, TeamOut, TeamUpdate, TournamentCreate, TournamentDetailOut, TournamentOut, TournamentUpdate, UserBriefOut, UserTeamOut,
 )
 from app.services.scoring import recalculate_game_scores, recalculate_contest_totals
 
@@ -40,6 +40,19 @@ async def resolve_to_uuid(db: AsyncSession, model, value: str) -> uuid.UUID:
             detail=f"{model.__tablename__} with external_id '{value}' not found",
         )
     return obj.id
+
+
+# ──────────────────────────────────────────────
+# Users (for sponsor dropdown, etc.)
+# ──────────────────────────────────────────────
+
+@router.get("/users", response_model=list[UserBriefOut])
+async def list_users(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _admin: Annotated[User, Depends(require_admin)],
+):
+    result = await db.execute(select(User).order_by(User.name))
+    return result.scalars().all()
 
 
 # ──────────────────────────────────────────────
@@ -297,6 +310,11 @@ async def create_contest(
         team_b_id=body.team_b_id,
         match_date=body.match_date,
         registration_cutoff=body.registration_cutoff,
+        prize=body.prize,
+        sponsor_id=body.sponsor_id,
+        sponsor_contact=body.sponsor_contact,
+        prize_type=body.prize_type,
+        join_approval_required=body.join_approval_required,
     )
     db.add(contest)
     await db.commit()
@@ -315,7 +333,7 @@ async def update_contest(
     contest = result.scalar_one_or_none()
     if contest is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
-    allowed = {"name", "match_date", "registration_cutoff", "is_locked", "is_completed", "prize"}
+    allowed = {"name", "match_date", "registration_cutoff", "is_locked", "is_completed", "prize", "sponsor_id", "sponsor_contact", "prize_type", "join_approval_required"}
     for key, value in body.items():
         if key in allowed:
             setattr(contest, key, value)

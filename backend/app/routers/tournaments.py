@@ -58,6 +58,7 @@ async def get_tournament(
         .options(
             selectinload(Tournament.contests).selectinload(Contest.team_a),
             selectinload(Tournament.contests).selectinload(Contest.team_b),
+            selectinload(Tournament.contests).selectinload(Contest.sponsor),
             selectinload(Tournament.contests).selectinload(Contest.contest_games).selectinload(ContestGame.winning_team),
             selectinload(Tournament.tournament_teams).selectinload(TournamentTeam.team),
         )
@@ -83,8 +84,10 @@ async def get_tournament(
     out = TournamentDetailOut.model_validate(tournament)
     for c_out in out.contests:
         c_out.participant_count = pc_map.get(c_out.id, 0)
-        # Compute winning team name from game results
         c_model = contest_map[c_out.id]
+        c_out.prize_type = c_model.prize_type
+        c_out.sponsor_name = c_model.sponsor.name if c_model.sponsor else None
+        # Compute winning team name from game results
         if c_model.is_completed and c_model.contest_games:
             wins: dict = {}
             for g in c_model.contest_games:

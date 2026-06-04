@@ -34,6 +34,11 @@ export const contestsApi = {
   list: () => client.get('/api/contests'),
   get: (id) => client.get(`/api/contests/${id}`),
   trending: () => client.get('/api/contests/trending'),
+  requestJoin: (id) => client.post(`/api/contests/${id}/join-request`),
+  myJoinRequest: (id) => client.get(`/api/contests/${id}/my-join-request`),
+  joinRequests: (id) => client.get(`/api/contests/${id}/join-requests`),
+  updateJoinRequest: (id, userId, data) => client.patch(`/api/contests/${id}/join-requests/${userId}`, data),
+  sponsorContest: (id, data) => client.post(`/api/contests/${id}/sponsor`, data),
 }
 
 // ── User Teams ────────────────────────────────────────────────────────────────
@@ -74,6 +79,7 @@ export const adminApi = {  createTournament: (data) => client.post('/api/admin/t
   deleteGame: (contestId, gameId) =>
     client.delete(`/api/admin/contests/${contestId}/games/${gameId}`),
   allTeams: (contestId) => client.get(`/api/admin/contests/${contestId}/all-teams`),
+  users: () => client.get('/api/admin/users'),
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

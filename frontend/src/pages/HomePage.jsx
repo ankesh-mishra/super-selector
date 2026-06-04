@@ -70,7 +70,12 @@ function FeaturedContest({ contests, user }) {
   const navigate = useNavigate()
   const featured = [...contests]
     .filter((c) => !c.is_locked)
-    .sort((a, b) => (b.participant_count || 0) - (a.participant_count || 0))[0]
+    .sort((a, b) => {
+      // sponsored first, then most participants
+      if (a.sponsor_name && !b.sponsor_name) return -1
+      if (!a.sponsor_name && b.sponsor_name) return 1
+      return (b.participant_count || 0) - (a.participant_count || 0)
+    })[0]
   const countdown = useCountdown(featured?.match_date)
 
   // Compact version for the info row: "2h 30m" / "45m"
@@ -188,15 +193,24 @@ function FeaturedContest({ contests, user }) {
       {/* ── Info row ── */}
       <div className="flex items-center justify-around px-4 py-2"
         style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        <div className="flex items-center gap-1.5">
-          <img src="/card-icons/participants.png" alt="" className="w-4 h-4 object-contain shrink-0" />
-          <div className="flex flex-col">
-            <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Players</span>
-            <span className="text-[0.65rem] font-bold leading-tight text-white">
-              {featured.participant_count > 0 ? `${featured.participant_count}` : '—'}
-            </span>
+        {/* Sponsor/Manager */}
+        {featured.sponsor_name ? (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm">💛</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Sponsor</span>
+              <span className="text-[0.65rem] font-bold leading-tight truncate max-w-[70px]" style={{ color: '#facc15' }}>{featured.sponsor_name}</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">💛</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Sponsor</span>
+              <span className="text-[0.65rem] font-bold leading-tight" style={{ color: '#94a3b8' }}>Open</span>
+            </div>
+          </div>
+        )}
         {!featured.is_locked && compactCountdown ? (
           <div className="flex items-center gap-1.5">
             <img src="/card-icons/starts%20in.png" alt="" className="w-4 h-4 object-contain shrink-0" />
@@ -215,14 +229,7 @@ function FeaturedContest({ contests, user }) {
           </div>
         ) : null}
         <div className="flex items-center gap-1.5">
-          <img src="/card-icons/entry%20fee.png" alt="" className="w-4 h-4 object-contain shrink-0" />
-          <div className="flex flex-col">
-            <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Entry</span>
-            <span className="text-[0.65rem] font-bold leading-tight" style={{ color: '#34d399' }}>Free</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <img src="/card-icons/prize%20pool.png" alt="" className="w-4 h-4 object-contain shrink-0" />
+          <span className="text-base leading-none">{{'CASH':'💵','DRINKS':'🍷','FNB':'🍽️','GIFTS':'🎁','OTHERS':'⭐'}[featured.prize_type] || '🏆'}</span>
           <div className="flex flex-col">
             <span className="text-[0.55rem] leading-tight" style={{ color: '#475569' }}>Prize</span>
             <span className="text-[0.65rem] font-bold leading-tight text-white">{(featured.prize || 'Winner Badge').replace('Winner Badge', 'Badge')}</span>
@@ -268,7 +275,8 @@ function TrendingContests({ contests, user }) {
             teamBName={c.team_b_name}
             topRight={c.tournament_name}
             prize={c.prize}
-            participantCount={c.participant_count}
+            prizeType={c.prize_type}
+            sponsorName={c.sponsor_name}
             size="sm"
           />
         ))}
@@ -341,7 +349,7 @@ function MyContests({ myContests }) {
                 <span className="text-sm font-black text-gradient">{mc.total_points}</span>
                 <span className="text-[0.6rem]" style={{ color: '#64748b' }}>pts</span>
               </div>
-              {isLive && mc.rank != null && (
+              {mc.rank != null && (
                 <p className="text-[0.6rem] leading-tight" style={{ color: '#64748b' }}>
                   #{mc.rank}<span style={{ color: '#334155' }}>/{mc.total_participants}</span>
                 </p>

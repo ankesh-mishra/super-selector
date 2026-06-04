@@ -18,6 +18,7 @@ import AdminPanel from './pages/AdminPanel'
 import AboutPage from './pages/AboutPage'
 import PlayersPage from './pages/PlayersPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
+import ContestPlayerBreakdownPage from './pages/ContestPlayerBreakdownPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -52,6 +53,7 @@ function AppRoutes() {
           <Route path="/contests/:id/my-team" element={<ProtectedRoute><MyTeamPage /></ProtectedRoute>} />
           <Route path="/contests/:id/leaderboard" element={<ProtectedRoute><ContestLeaderboardPage /></ProtectedRoute>} />
           <Route path="/contests/:id/teams/:userId" element={<ProtectedRoute><UserTeamViewPage /></ProtectedRoute>} />
+          <Route path="/contests/:contestId/players/:playerId" element={<ProtectedRoute><ContestPlayerBreakdownPage /></ProtectedRoute>} />
           <Route path="/tournaments/:id/leaderboard" element={<ProtectedRoute><TournamentLeaderboardPage /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
           <Route path="/about" element={<AboutPage />} />

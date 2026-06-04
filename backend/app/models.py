@@ -32,6 +32,20 @@ class SportEnum(str, enum.Enum):
     BADMINTON = "BADMINTON"
 
 
+class PrizeTypeEnum(str, enum.Enum):
+    CASH = "CASH"
+    DRINKS = "DRINKS"
+    FNB = "FNB"
+    GIFTS = "GIFTS"
+    OTHERS = "OTHERS"
+
+
+class JoinRequestStatusEnum(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 # ──────────────────────────────────────────────
 # Users
 # ──────────────────────────────────────────────
@@ -51,6 +65,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user_teams: Mapped[list["UserTeam"]] = relationship("UserTeam", back_populates="user")
+    join_requests: Mapped[list["ContestJoinRequest"]] = relationship("ContestJoinRequest", foreign_keys="ContestJoinRequest.user_id", back_populates="user")
 
 
 # ──────────────────────────────────────────────
@@ -152,13 +167,38 @@ class Contest(Base):
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     prize: Mapped[str] = mapped_column(String(255), nullable=False, server_default='Winner Badge')
+    sponsor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    sponsor_contact: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prize_type: Mapped[PrizeTypeEnum | None] = mapped_column(String(20), nullable=True)
+    join_approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tournament: Mapped["Tournament | None"] = relationship("Tournament", back_populates="contests")
     team_a: Mapped["Team"] = relationship("Team", foreign_keys=[team_a_id], back_populates="contests_as_a")
     team_b: Mapped["Team"] = relationship("Team", foreign_keys=[team_b_id], back_populates="contests_as_b")
+    sponsor: Mapped["User | None"] = relationship("User", foreign_keys=[sponsor_id])
     user_teams: Mapped[list["UserTeam"]] = relationship("UserTeam", back_populates="contest")
     contest_games: Mapped[list["ContestGame"]] = relationship("ContestGame", back_populates="contest")
+    join_requests: Mapped[list["ContestJoinRequest"]] = relationship("ContestJoinRequest", back_populates="contest", cascade="all, delete-orphan")
+
+
+# ──────────────────────────────────────────────
+# ContestJoinRequest — approval requests for sponsored contests
+# ──────────────────────────────────────────────
+
+class ContestJoinRequest(Base):
+    __tablename__ = "contest_join_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contest_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("contests.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("contest_id", "user_id", name="uq_contest_join_request"),)
+
+    contest: Mapped["Contest"] = relationship("Contest", back_populates="join_requests")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="join_requests")
 
 
 # ──────────────────────────────────────────────
