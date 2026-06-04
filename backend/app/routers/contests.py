@@ -1,6 +1,5 @@
 import uuid
 from io import BytesIO
-from pathlib import Path
 from datetime import datetime, timezone
 from html import escape
 from typing import Annotated
@@ -8,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response
 from PIL import Image, ImageDraw, ImageOps
+import httpx
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,7 +21,6 @@ from app.schemas import ContestOut, ContestDetailOut, ContestCardOut, ContestJoi
 router = APIRouter()
 
 
-PUBLIC_DIR = Path(__file__).resolve().parents[2].parent / "frontend" / "public"
 TEAM_LOGO_MAP = {
     "Assetz Challengers": "Assetz20Challengers.webp",
     "Assetz Endless Rally": "Assetz20Endless20Rally.webp",
@@ -36,39 +35,51 @@ TEAM_LOGO_MAP = {
     "Smash Syndicate": "Smash20Syndicate.webp",
     "Supersonic": "Supersonic.webp",
 }
-APP_LOGO_PATH = PUBLIC_DIR / "logo.webp"
 
 
-def _team_logo_path(team_name: str | None) -> Path:
+def _team_logo_rel_path(team_name: str | None) -> str | None:
     filename = TEAM_LOGO_MAP.get(team_name or "")
-    if filename:
-        path = PUBLIC_DIR / "team-logos" / filename
-        if path.exists():
-            return path
-    return PUBLIC_DIR / "sports-logos" / "Badminton.jpg"
+    return f"/team-logos/{filename}" if filename else None
 
 
-def _paste_logo(base: Image.Image, logo_path: Path, box: tuple[int, int, int, int]):
-    logo = Image.open(logo_path).convert("RGBA")
+def _paste_logo(base: Image.Image, logo: Image.Image, box: tuple[int, int, int, int]):
+    logo = logo.convert("RGBA")
     fitted = ImageOps.fit(logo, (box[2], box[3]), method=Image.Resampling.LANCZOS)
     mask = Image.new("L", (box[2], box[3]), 0)
     ImageDraw.Draw(mask).ellipse((0, 0, box[2], box[3]), fill=255)
     base.paste(fitted, (box[0], box[1]), mask)
 
 
-def _paste_rect_logo(base: Image.Image, logo_path: Path, box: tuple[int, int, int, int]):
-    if not logo_path.exists():
-        return
-    logo = Image.open(logo_path).convert("RGBA")
+def _paste_rect_logo(base: Image.Image, logo: Image.Image, box: tuple[int, int, int, int]):
+    logo = logo.convert("RGBA")
     fitted = ImageOps.contain(logo, (box[2], box[3]), method=Image.Resampling.LANCZOS)
     x = box[0] + (box[2] - fitted.width) // 2
     y = box[1] + (box[3] - fitted.height) // 2
     base.paste(fitted, (x, y), fitted)
 
 
+async def _fetch_remote_image(client: httpx.AsyncClient, url: str) -> Image.Image | None:
+    try:
+        r = await client.get(url, timeout=6.0)
+        if r.status_code != 200:
+            return None
+        return Image.open(BytesIO(r.content)).convert("RGBA")
+    except Exception:
+        return None
+
+
+def _placeholder_logo(size: int = 240) -> Image.Image:
+    img = Image.new("RGBA", (size, size), (15, 22, 35, 255))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse((8, 8, size - 8, size - 8), outline="#1f3a63", width=6)
+    draw.text((size // 2, size // 2), "SS", anchor="mm", fill="#94a3b8", font_size=64)
+    return img
+
+
 @router.get("/share-image/{contest_id}.png")
 async def share_contest_image(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
     """PNG OG image with both team logos and VS in the middle."""
+    settings = get_settings()
     result = await db.execute(
         select(Contest)
         .options(selectinload(Contest.team_a), selectinload(Contest.team_b))
@@ -91,9 +102,21 @@ async def share_contest_image(contest_id: uuid.UUID, db: Annotated[AsyncSession,
     draw.text((600, 315), "v", anchor="mm", fill="#ffffff", font_size=68)
     draw.text((600, 535), f"{contest.team_a.name} vs {contest.team_b.name}", anchor="mm", fill="#e2e8f0", font_size=56)
 
-    _paste_logo(image, _team_logo_path(contest.team_a.name), (210, 185, 240, 240))
-    _paste_logo(image, _team_logo_path(contest.team_b.name), (750, 185, 240, 240))
-    _paste_rect_logo(image, APP_LOGO_PATH, (88, 82, 56, 56))
+    logo_a_rel = _team_logo_rel_path(contest.team_a.name)
+    logo_b_rel = _team_logo_rel_path(contest.team_b.name)
+    logo_a_url = f"{settings.frontend_url}{logo_a_rel}" if logo_a_rel else None
+    logo_b_url = f"{settings.frontend_url}{logo_b_rel}" if logo_b_rel else None
+    app_logo_url = f"{settings.frontend_url}/logo.webp"
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        logo_a_img = await _fetch_remote_image(client, logo_a_url) if logo_a_url else None
+        logo_b_img = await _fetch_remote_image(client, logo_b_url) if logo_b_url else None
+        app_logo_img = await _fetch_remote_image(client, app_logo_url)
+
+    _paste_logo(image, logo_a_img or _placeholder_logo(), (210, 185, 240, 240))
+    _paste_logo(image, logo_b_img or _placeholder_logo(), (750, 185, 240, 240))
+    if app_logo_img:
+        _paste_rect_logo(image, app_logo_img, (88, 82, 56, 56))
 
     buffer = BytesIO()
     image.convert("RGB").save(buffer, format="PNG", optimize=True)
@@ -143,11 +166,14 @@ async def share_contest(contest_id: uuid.UUID, request: Request, db: Annotated[A
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">
   <meta property="og:image" content="{og_image}">
+    <meta property="og:image:secure_url" content="{og_image}">
+    <meta property="og:locale" content="en_IN">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="{share_url}">
+    <meta name="twitter:site" content="@superselector">
   <meta name="twitter:title" content="{title}">
   <meta name="twitter:description" content="{description}">
   <meta name="twitter:image" content="{og_image}">
