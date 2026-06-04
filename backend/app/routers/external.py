@@ -187,6 +187,11 @@ async def external_update_game_score(
     game.updated_at = datetime.now(timezone.utc)
 
     await db.flush()
+
+    contest_result = await db.execute(select(Contest).where(Contest.id == contest.id))
+    saved_contest = contest_result.scalar_one()
+    saved_contest.is_locked = True
+
     await recalculate_game_scores(game, db)
     await db.commit()
 
