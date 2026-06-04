@@ -30,6 +30,7 @@ from app.models import (
     UserTeamPlayer,
 )
 from app.rules_config import (
+    CAPTAIN_BID_POINTS_FOR_UNDERDOG,
     CAPTAIN_MULTIPLIER,
     DEFAULT_MULTIPLIER,
     SCORING_EVENTS,
@@ -126,13 +127,17 @@ def _derive_events(
                 })
 
     # ── UNDERDOG bonuses ──────────────────────────────────────────────────────
+    # Real captains have bid_points=0 stored; use configured default for fair comparison
+    def _effective_bid(p: Player) -> int:
+        return CAPTAIN_BID_POINTS_FOR_UNDERDOG if p.is_real_captain else p.bid_points
+
     winning_bid_total = sum(
-        p.bid_points for pid, p in all_game_player_map.items()
+        _effective_bid(p) for pid, p in all_game_player_map.items()
         if pid in winning_player_ids
     )
     losing_player_ids = set(all_game_player_map.keys()) - winning_player_ids
     losing_bid_total = sum(
-        p.bid_points for pid, p in all_game_player_map.items()
+        _effective_bid(p) for pid, p in all_game_player_map.items()
         if pid in losing_player_ids
     )
 
