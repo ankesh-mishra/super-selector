@@ -36,6 +36,7 @@ TEAM_LOGO_MAP = {
     "Smash Syndicate": "Smash20Syndicate.webp",
     "Supersonic": "Supersonic.webp",
 }
+APP_LOGO_PATH = PUBLIC_DIR / "logo.webp"
 
 
 def _team_logo_path(team_name: str | None) -> Path:
@@ -53,6 +54,16 @@ def _paste_logo(base: Image.Image, logo_path: Path, box: tuple[int, int, int, in
     mask = Image.new("L", (box[2], box[3]), 0)
     ImageDraw.Draw(mask).ellipse((0, 0, box[2], box[3]), fill=255)
     base.paste(fitted, (box[0], box[1]), mask)
+
+
+def _paste_rect_logo(base: Image.Image, logo_path: Path, box: tuple[int, int, int, int]):
+    if not logo_path.exists():
+        return
+    logo = Image.open(logo_path).convert("RGBA")
+    fitted = ImageOps.contain(logo, (box[2], box[3]), method=Image.Resampling.LANCZOS)
+    x = box[0] + (box[2] - fitted.width) // 2
+    y = box[1] + (box[3] - fitted.height) // 2
+    base.paste(fitted, (x, y), fitted)
 
 
 @router.get("/share-image/{contest_id}.png")
@@ -75,11 +86,14 @@ async def share_contest_image(contest_id: uuid.UUID, db: Annotated[AsyncSession,
     draw.ellipse((180, 155, 480, 455), fill="#09111e", outline="#274a78", width=8)
     draw.ellipse((720, 155, 1020, 455), fill="#09111e", outline="#274a78", width=8)
     draw.rounded_rectangle((525, 245, 675, 385), radius=28, fill="#102a1f", outline="#10b981", width=4)
+    draw.rounded_rectangle((70, 70, 430, 150), radius=20, fill="#0b1a2c", outline="#1f3a63", width=2)
+    draw.text((270, 110), "Super Selector", anchor="mm", fill="#e2e8f0", font_size=40)
     draw.text((600, 315), "v", anchor="mm", fill="#ffffff", font_size=68)
     draw.text((600, 535), f"{contest.team_a.name} vs {contest.team_b.name}", anchor="mm", fill="#e2e8f0", font_size=56)
 
     _paste_logo(image, _team_logo_path(contest.team_a.name), (210, 185, 240, 240))
     _paste_logo(image, _team_logo_path(contest.team_b.name), (750, 185, 240, 240))
+    _paste_rect_logo(image, APP_LOGO_PATH, (88, 82, 56, 56))
 
     buffer = BytesIO()
     image.convert("RGB").save(buffer, format="PNG", optimize=True)
@@ -90,6 +104,7 @@ async def share_contest_image(contest_id: uuid.UUID, db: Annotated[AsyncSession,
     )
 
 
+@router.get("/s/{contest_id}", response_class=HTMLResponse)
 @router.get("/share/{contest_id}", response_class=HTMLResponse)
 async def share_contest(contest_id: uuid.UUID, request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     """Returns an HTML page with Open Graph meta tags for rich WhatsApp / social previews."""
@@ -105,7 +120,7 @@ async def share_contest(contest_id: uuid.UUID, request: Request, db: Annotated[A
 
     dest = f"{settings.frontend_url}/contests/{contest_id}"
     ts = int(datetime.now(timezone.utc).timestamp())
-    share_url = str(request.url.include_query_params(v=ts))
+    share_url = str(request.url.replace(query=""))
     title = escape(f"{contest.team_a.name} vs {contest.team_b.name}")
     prize_icons = {"CASH": "💵", "DRINKS": "🍷", "FNB": "🍽️", "GIFTS": "🎁", "OTHERS": "⭐"}
     prize_icon = prize_icons.get(contest.prize_type or "", "🏆")
@@ -123,6 +138,7 @@ async def share_contest(contest_id: uuid.UUID, request: Request, db: Annotated[A
   <meta charset="utf-8">
   <title>{title}</title>
   <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Super Selector">
     <meta property="og:url" content="{share_url}">
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">

@@ -19,6 +19,7 @@ import AboutPage from './pages/AboutPage'
 import PlayersPage from './pages/PlayersPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import ContestPlayerBreakdownPage from './pages/ContestPlayerBreakdownPage'
+import ScoringRulesPage from './pages/ScoringRulesPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -59,6 +60,7 @@ function AppRoutes() {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/players" element={<PlayersPage />} />
           <Route path="/players/:id" element={<PlayerDetailPage />} />
+          <Route path="/scoring-rules" element={<ProtectedRoute><ScoringRulesPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
