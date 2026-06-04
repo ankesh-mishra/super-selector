@@ -370,7 +370,7 @@ export default function ContestDetailPage() {
           <button
             onClick={() => {
               const apiBase = import.meta.env.VITE_API_URL || window.location.origin
-              const shareUrl = `${apiBase}/api/contests/share/${id}`
+              const shareUrl = `${apiBase}/api/contests/share/${id}?v=${Date.now()}`
               navigator.clipboard.writeText(shareUrl).then(() => {
                 setLinkCopied(true)
                 setTimeout(() => setLinkCopied(false), 2000)
