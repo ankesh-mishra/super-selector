@@ -42,28 +42,28 @@ SCORING_EVENTS = {
         "points": 0.5,
         "enabled": True,
     },
-    # +0.5 pt bonus if the winning team won 2-0 (straight sets)
+    # +0.25 pt bonus if the winning team won 2-0 (straight sets)
     "STRAIGHT_SET_WIN_BONUS": {
-        "points": 0.5,
+        "points": 0.25,
         "enabled": True,
     },
-    # +0.5 pts per set where the winning margin is >= diff_threshold
+    # +0.25 pts per set where the winning margin is >= diff_threshold
     # Awarded to players on the side that WON that specific set
     "DOMINANT_SET_BONUS": {
-        "points": 0.5,
+        "points": 0.25,
         "enabled": True,
         "diff_threshold": 10,
     },
-    # +1 pt underdog bonus: winning team's total bid points <= 50% of losing team's
+    # +0.5 pt underdog bonus: winning team's total bid points <= 50% of losing team's
     "UNDERDOG_WIN_LARGE": {
-        "points": 1,
+        "points": 0.5,
         "enabled": True,
         "bid_ratio_threshold": 0.50,  # winner_bid_total <= loser_bid_total * 0.50
     },
-    # +0.5 pt underdog bonus: winning team's total bid points <= 75% of losing team's
+    # +0.25 pt underdog bonus: winning team's total bid points <= 75% of losing team's
     # (mutually exclusive with UNDERDOG_WIN_LARGE — only larger fires)
     "UNDERDOG_WIN_SMALL": {
-        "points": 0.5,
+        "points": 0.25,
         "enabled": True,
         "bid_ratio_threshold": 0.75,  # winner_bid_total <= loser_bid_total * 0.75
     },

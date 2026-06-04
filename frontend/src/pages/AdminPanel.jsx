@@ -932,7 +932,14 @@ function AddGameSubTab({ contest, contestId, playersA, playersB }) {
 
   const patchScore = useMutation({
     mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(form, contest)),
-    onSuccess: () => { qc.invalidateQueries(['contest', contestId]); setSaved(true) },
+    onSuccess: () => {
+      qc.invalidateQueries(['contest', contestId])
+      qc.invalidateQueries(['leaderboard', contestId])
+      qc.invalidateQueries(['my-team', contestId])
+      qc.invalidateQueries(['my-contests'])
+      if (contest?.tournament_id) qc.invalidateQueries(['tournament', contest.tournament_id])
+      setSaved(true)
+    },
     onError: (e) => setErrMsg(e.response?.data?.detail || 'Error saving score'),
   })
 
@@ -995,13 +1002,28 @@ function ViewGamesSubTab({ contest, contestId, playersA, playersB }) {
 
   const updateScore = useMutation({
     mutationFn: (gameId) => adminApi.updateGame(contestId, gameId, buildPayload(editForm, contest)),
-    onSuccess: (_, gameId) => { qc.invalidateQueries(['contest', contestId]); setSavedId(gameId); setEditingId(null) },
+    onSuccess: (_, gameId) => {
+      qc.invalidateQueries(['contest', contestId])
+      qc.invalidateQueries(['leaderboard', contestId])
+      qc.invalidateQueries(['my-team', contestId])
+      qc.invalidateQueries(['my-contests'])
+      if (contest?.tournament_id) qc.invalidateQueries(['tournament', contest.tournament_id])
+      setSavedId(gameId)
+      setEditingId(null)
+    },
     onError: (e) => setErrMsg(e.response?.data?.detail || 'Error updating score'),
   })
 
   const deleteGame = useMutation({
     mutationFn: (gameId) => adminApi.deleteGame(contestId, gameId),
-    onSuccess: () => { qc.invalidateQueries(['contest', contestId]); setConfirmDeleteId(null) },
+    onSuccess: () => {
+      qc.invalidateQueries(['contest', contestId])
+      qc.invalidateQueries(['leaderboard', contestId])
+      qc.invalidateQueries(['my-team', contestId])
+      qc.invalidateQueries(['my-contests'])
+      if (contest?.tournament_id) qc.invalidateQueries(['tournament', contest.tournament_id])
+      setConfirmDeleteId(null)
+    },
     onError: (e) => setErrMsg(e.response?.data?.detail || 'Error deleting game'),
   })
 

@@ -446,6 +446,10 @@ async def update_game_score(
 
     await db.flush()
 
+    contest_result = await db.execute(select(Contest).where(Contest.id == resolved_contest_id))
+    contest = contest_result.scalar_one()
+    contest.is_locked = True
+
     # Trigger scoring recalculation
     await recalculate_game_scores(game, db)
 
