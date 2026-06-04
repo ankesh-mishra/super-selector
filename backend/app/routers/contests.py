@@ -1,10 +1,13 @@
 import uuid
+from io import BytesIO
+from pathlib import Path
 from datetime import datetime, timezone
 from html import escape
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, Response
+from PIL import Image, ImageDraw, ImageOps
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,13 +21,82 @@ from app.schemas import ContestOut, ContestDetailOut, ContestCardOut, ContestJoi
 router = APIRouter()
 
 
+PUBLIC_DIR = Path(__file__).resolve().parents[2].parent / "frontend" / "public"
+TEAM_LOGO_MAP = {
+    "Assetz Challengers": "Assetz20Challengers.webp",
+    "Assetz Endless Rally": "Assetz20Endless20Rally.webp",
+    "Backhand Brigade": "Backhand20Brigade.webp",
+    "Big Dawgs": "Big20Dawgs.webp",
+    "Club Shakti": "Club20Shakti.webp",
+    "Court Commanders": "Court20Commanders.webp",
+    "Dhurandhar Smash Squad": "Dhurandhar20Smash20Squad.webp",
+    "Mavericks 63": "Mavericks2063.webp",
+    "Netflicks & Kill": "Netflicks202620Kill.webp",
+    "Shuttle Strikers": "Shuttle20Strikers.webp",
+    "Smash Syndicate": "Smash20Syndicate.webp",
+    "Supersonic": "Supersonic.webp",
+}
+
+
+def _team_logo_path(team_name: str | None) -> Path:
+    filename = TEAM_LOGO_MAP.get(team_name or "")
+    if filename:
+        path = PUBLIC_DIR / "team-logos" / filename
+        if path.exists():
+            return path
+    return PUBLIC_DIR / "sports-logos" / "Badminton.jpg"
+
+
+def _paste_logo(base: Image.Image, logo_path: Path, box: tuple[int, int, int, int]):
+    logo = Image.open(logo_path).convert("RGBA")
+    fitted = ImageOps.fit(logo, (box[2], box[3]), method=Image.Resampling.LANCZOS)
+    mask = Image.new("L", (box[2], box[3]), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, box[2], box[3]), fill=255)
+    base.paste(fitted, (box[0], box[1]), mask)
+
+
+@router.get("/share-image/{contest_id}.png")
+async def share_contest_image(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+    """PNG OG image with both team logos and VS in the middle."""
+    result = await db.execute(
+        select(Contest)
+        .options(selectinload(Contest.team_a), selectinload(Contest.team_b))
+        .where(Contest.id == contest_id)
+    )
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    image = Image.new("RGBA", (1200, 630), "#0b1220")
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((-80, -120, 500, 420), fill="#12344f")
+    draw.ellipse((760, -140, 1280, 380), fill="#173357")
+    draw.rounded_rectangle((40, 40, 1160, 590), radius=28, outline="#1f3a63", width=3)
+    draw.ellipse((180, 155, 480, 455), fill="#09111e", outline="#274a78", width=8)
+    draw.ellipse((720, 155, 1020, 455), fill="#09111e", outline="#274a78", width=8)
+    draw.rounded_rectangle((525, 245, 675, 385), radius=28, fill="#102a1f", outline="#10b981", width=4)
+    draw.text((600, 315), "v", anchor="mm", fill="#ffffff", font_size=68)
+    draw.text((600, 535), f"{contest.team_a.name} vs {contest.team_b.name}", anchor="mm", fill="#e2e8f0", font_size=56)
+
+    _paste_logo(image, _team_logo_path(contest.team_a.name), (210, 185, 240, 240))
+    _paste_logo(image, _team_logo_path(contest.team_b.name), (750, 185, 240, 240))
+
+    buffer = BytesIO()
+    image.convert("RGB").save(buffer, format="PNG", optimize=True)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
 @router.get("/share/{contest_id}", response_class=HTMLResponse)
-async def share_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+async def share_contest(contest_id: uuid.UUID, request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
     """Returns an HTML page with Open Graph meta tags for rich WhatsApp / social previews."""
     settings = get_settings()
     result = await db.execute(
         select(Contest)
-        .options(selectinload(Contest.team_a).selectinload(Team.players), selectinload(Contest.team_b), selectinload(Contest.sponsor))
+        .options(selectinload(Contest.team_a), selectinload(Contest.team_b), selectinload(Contest.sponsor))
         .where(Contest.id == contest_id)
     )
     contest = result.scalar_one_or_none()
@@ -32,6 +104,8 @@ async def share_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depen
         raise HTTPException(status_code=404, detail="Contest not found")
 
     dest = f"{settings.frontend_url}/contests/{contest_id}"
+    ts = int(datetime.now(timezone.utc).timestamp())
+    share_url = str(request.url.include_query_params(v=ts))
     title = escape(f"{contest.team_a.name} vs {contest.team_b.name}")
     prize_icons = {"CASH": "💵", "DRINKS": "🍷", "FNB": "🍽️", "GIFTS": "🎁", "OTHERS": "⭐"}
     prize_icon = prize_icons.get(contest.prize_type or "", "🏆")
@@ -40,14 +114,8 @@ async def share_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depen
     desc_parts = [p for p in [prize_line, sponsor_line] if p]
     description = escape(" · ".join(desc_parts) if desc_parts else "Fantasy contest on SuperSelector")
 
-    # Use first real-captain photo as OG image if available, else app logo
-    og_image = ""
-    for p in contest.team_a.players:
-        if p.is_real_captain and p.photo_url:
-            og_image = p.photo_url
-            break
-    if not og_image:
-        og_image = f"{settings.frontend_url}/sports-logos/badminton.png"
+    image_url = request.url_for("share_contest_image", contest_id=str(contest_id))
+    og_image = f"{image_url}?v={ts}"
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -55,19 +123,23 @@ async def share_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depen
   <meta charset="utf-8">
   <title>{title}</title>
   <meta property="og:type" content="website">
-  <meta property="og:url" content="{dest}">
+    <meta property="og:url" content="{share_url}">
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">
   <meta property="og:image" content="{og_image}">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{share_url}">
   <meta name="twitter:title" content="{title}">
   <meta name="twitter:description" content="{description}">
   <meta name="twitter:image" content="{og_image}">
-  <meta http-equiv="refresh" content="0; url={dest}">
+    <meta http-equiv="refresh" content="0; url={dest}">
 </head>
 <body style="background:#080d14;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
   <a href="{dest}" style="color:#34d399;font-size:1rem">Opening contest…</a>
-  <script>window.location.replace("{dest}")</script>
+    <script>window.location.replace("{dest}")</script>
 </body>
 </html>"""
     return HTMLResponse(content=html)
