@@ -21,6 +21,9 @@ CAPTAIN_MULTIPLIER = 2.0
 VICE_CAPTAIN_MULTIPLIER = 1.5
 DEFAULT_MULTIPLIER = 1.0
 
+# Bid points to use for real team captains (stored as 0) when calculating underdog bonuses
+CAPTAIN_BID_POINTS_FOR_UNDERDOG = 40_000
+
 # ──────────────────────────────────────────────
 # Scoring events
 # Each event has:
@@ -39,9 +42,9 @@ SCORING_EVENTS = {
         "points": 0.5,
         "enabled": True,
     },
-    # +1 pt bonus if the winning team won 2-0 (straight sets)
+    # +0.5 pt bonus if the winning team won 2-0 (straight sets)
     "STRAIGHT_SET_WIN_BONUS": {
-        "points": 1,
+        "points": 0.5,
         "enabled": True,
     },
     # +0.5 pts per set where the winning margin is >= diff_threshold
