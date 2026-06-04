@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { formatPoints } from '../utils/points'
 
 export default function LeaderboardTable({ entries, currentUserId, showContests, getTeamPath, prize }) {
   const navigate = useNavigate()
@@ -48,7 +49,7 @@ export default function LeaderboardTable({ entries, currentUserId, showContests,
                 </td>
                 <td className="w-24 px-3 py-1.5 text-right">
                   <span className="font-mono text-white">
-                    {e.total_points.toFixed(1)}
+                    {formatPoints(e.total_points)}
                   </span>
                   {showContests && (
                     <span className="text-xs font-normal ml-1" style={{ color: '#64748b' }}>({e.contests_entered})</span>

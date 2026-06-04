@@ -4,6 +4,7 @@ import { userTeamsApi, contestsApi } from '../api/endpoints'
 import { useAuth } from '../context/AuthContext'
 import TeamBadge from '../components/TeamBadge'
 import PlayerAvatar from '../components/PlayerAvatar'
+import { formatPoints } from '../utils/points'
 
 export default function UserTeamViewPage() {
   const { id: contestId, userId } = useParams()
@@ -65,7 +66,7 @@ export default function UserTeamViewPage() {
       <div className="flex items-center justify-between">
         <span className="text-sm" style={{ color: '#64748b' }}>{team?.players?.length || 0} players</span>
         <div>
-          <span className="text-gradient text-2xl font-black">{team?.total_points?.toFixed(1)}</span>
+          <span className="text-gradient text-2xl font-black">{formatPoints(team?.total_points)}</span>
           <span className="text-xs ml-1" style={{ color: '#64748b' }}>pts</span>
         </div>
       </div>
@@ -104,7 +105,7 @@ export default function UserTeamViewPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold text-sm text-emerald-400">{utp.points_earned.toFixed(1)}</p>
+                <p className="font-bold text-sm text-emerald-400">{formatPoints(utp.points_earned)}</p>
                 <p className="text-xs" style={{ color: '#475569' }}>pts</p>
               </div>
             </div>

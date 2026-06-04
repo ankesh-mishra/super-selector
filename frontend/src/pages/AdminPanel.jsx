@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { NativeSelect } from '@/components/ui/native-select'
+import { formatPoints } from '../utils/points'
 
 // ─── Mini wrappers (keep same call-site API as before) ────────────────────────
 
@@ -1307,7 +1308,7 @@ function AllTeamsTab() {
         <div key={ut.id} className="bg-card rounded-xl p-3">
           <div className="flex justify-between items-center mb-2">
             <p className="font-semibold text-sm">{ut.user?.name ?? ut.user_id.slice(0, 8) + '…'}</p>
-            <p className="font-bold text-primary">{ut.total_points.toFixed(1)} pts</p>
+            <p className="font-bold text-primary">{formatPoints(ut.total_points)} pts</p>
           </div>
           <div className="flex flex-wrap gap-1">
             {ut.players.map((utp) => (

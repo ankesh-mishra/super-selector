@@ -7,6 +7,7 @@ import LeaderboardTable from '../components/LeaderboardTable'
 import PlayerAvatar from '../components/PlayerAvatar'
 import { useAuth } from '../context/AuthContext'
 import { getTeamCaptain } from '../utils/teamLogos'
+import { formatPoints } from '../utils/points'
 
 function useCountdown(targetDate) {
   const [diff, setDiff] = useState(() => Math.max(0, new Date(targetDate) - Date.now()))
@@ -485,7 +486,7 @@ export default function ContestDetailPage() {
             )}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gradient text-2xl font-black">{myTeam.total_points.toFixed(1)}</p>
+                <p className="text-gradient text-2xl font-black">{formatPoints(myTeam.total_points)}</p>
                 <p className="text-xs" style={{ color: '#64748b' }}>Total Points</p>
               </div>
               {isOpen && (
@@ -532,7 +533,7 @@ export default function ContestDetailPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-sm text-emerald-400">{utp.points_earned.toFixed(1)}</p>
+                      <p className="font-bold text-sm text-emerald-400">{formatPoints(utp.points_earned)}</p>
                       <p className="text-xs" style={{ color: '#475569' }}>pts</p>
                     </div>
                   </Link>
