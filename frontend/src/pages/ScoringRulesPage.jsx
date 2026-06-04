@@ -105,7 +105,19 @@ export default function ScoringRulesPage() {
           </Section>
 
           <Section title="Scoring Events">
-            <div className="overflow-hidden rounded-xl" style={{ border: '1px solid #1e2d42' }}>
+            <div className="space-y-2 sm:hidden">
+              {activeRules.scoringRows.map((row) => (
+                <div key={row.event} className="rounded-lg px-3 py-2.5" style={{ background: '#0a1120', border: '1px solid #1e2d42' }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="font-semibold text-white text-xs leading-snug break-words">{row.event}</span>
+                    <span className="font-bold text-xs tabular-nums shrink-0" style={{ color: row.points.startsWith('-') ? '#f87171' : '#34d399' }}>{row.points}</span>
+                  </div>
+                  <p className="text-xs mt-1.5" style={{ color: '#94a3b8' }}>{row.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block overflow-hidden rounded-xl" style={{ border: '1px solid #1e2d42' }}>
               <div className="grid grid-cols-[minmax(0,1.6fr)_96px_minmax(0,2.4fr)] gap-x-4 px-3 py-2 text-[0.65rem] uppercase tracking-wide font-semibold" style={{ background: '#0a1120', color: '#64748b' }}>
                 <span>Event</span>
                 <span className="text-right">Points</span>
@@ -114,7 +126,7 @@ export default function ScoringRulesPage() {
               <div className="divide-y" style={{ borderColor: '#1e2d42' }}>
                 {activeRules.scoringRows.map((row) => (
                   <div key={row.event} className="grid grid-cols-[minmax(0,1.6fr)_96px_minmax(0,2.4fr)] gap-x-4 px-3 py-2.5 text-xs items-start">
-                    <span className="font-semibold text-white leading-snug">{row.event}</span>
+                    <span className="font-semibold text-white leading-snug break-words">{row.event}</span>
                     <span className="font-bold text-right tabular-nums" style={{ color: row.points.startsWith('-') ? '#f87171' : '#34d399' }}>{row.points}</span>
                     <span style={{ color: '#94a3b8' }}>{row.detail}</span>
                   </div>
