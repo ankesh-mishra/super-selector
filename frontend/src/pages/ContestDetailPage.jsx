@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { contestsApi, userTeamsApi, leaderboardApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
@@ -103,7 +103,11 @@ export default function ContestDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState('super selectors')
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [sponsorForm, setSponsorForm] = useState({ contact: '', prizeType: '', prize: '', requireApproval: false })
+  const [showSponsorForm, setShowSponsorForm] = useState(false)
 
   const { data: contest, isLoading } = useQuery({
     queryKey: ['contest', id],
@@ -119,6 +123,43 @@ export default function ContestDetailPage() {
     queryKey: ['leaderboard', id],
     queryFn: () => leaderboardApi.contest(id).then((r) => r.data),
     refetchInterval: 30_000,
+  })
+
+  // Sponsor: my join request (only if contest has sponsor, user is logged in, contest is open)
+  const { data: myJoinRequest } = useQuery({
+    queryKey: ['my-join-request', id],
+    queryFn: () => contestsApi.myJoinRequest(id).then((r) => r.data).catch(() => null),
+    enabled: !!(contest?.sponsor_id && user && !contest?.is_locked),
+  })
+
+  // Sponsor: all join requests (only if current user is the sponsor)
+  const { data: joinRequests, refetch: refetchJoinRequests } = useQuery({
+    queryKey: ['join-requests', id],
+    queryFn: () => contestsApi.joinRequests(id).then((r) => r.data),
+    enabled: !!(contest?.sponsor_id && user?.id === contest?.sponsor_id),
+  })
+
+  const requestJoinMutation = useMutation({
+    mutationFn: () => contestsApi.requestJoin(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-join-request', id] }),
+  })
+
+  const sponsorContestMutation = useMutation({
+    mutationFn: () => contestsApi.sponsorContest(id, {
+      sponsor_contact: sponsorForm.contact || null,
+      prize_type: sponsorForm.prizeType || null,
+      prize: sponsorForm.prize || null,
+      join_approval_required: sponsorForm.requireApproval,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contest', id] })
+      setShowSponsorForm(false)
+    },
+  })
+
+  const updateJoinRequestMutation = useMutation({
+    mutationFn: ({ userId, status }) => contestsApi.updateJoinRequest(id, userId, { status }),
+    onSuccess: () => refetchJoinRequests(),
   })
 
   const countdown = useCountdown(contest && !contest.is_locked ? contest.match_date : null)
@@ -227,12 +268,156 @@ export default function ContestDetailPage() {
                 {new Date(contest.match_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </p>
               {contest.prize && (
-                <p className="text-[0.6rem] font-semibold" style={{ color: '#34d399' }}>🏆 {contest.prize}</p>
+                <p className="text-[0.6rem] font-semibold" style={{ color: '#34d399' }}>
+                  {{'CASH':'💵','DRINKS':'🍷','FNB':'🍽️','GIFTS':'🎁','OTHERS':'⭐'}[contest.prize_type] || '🏆'} {contest.prize}
+                </p>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── Self-sponsor CTA (open contest, no sponsor yet, logged in) ── */}
+      {isOpen && !contest.sponsor_id && user && (
+        showSponsorForm ? (
+          <div className="rounded-xl p-3 flex flex-col gap-3" style={{ background: '#0f1623', border: '1px solid rgba(234,179,8,.35)' }}>
+            <p className="text-xs font-bold" style={{ color: '#facc15' }}>Sponsor/Manage this contest</p>
+            <input
+              className="w-full rounded-lg px-3 py-2 text-xs text-white bg-transparent outline-none"
+              style={{ border: '1px solid #1e2d42' }}
+              placeholder="Description — e.g. Pool 50 each, winner takes all; UPI: xxxx@xyz"
+              value={sponsorForm.contact}
+              onChange={(e) => setSponsorForm({ ...sponsorForm, contact: e.target.value })}
+            />
+            <input
+              className="w-full rounded-lg px-3 py-2 text-xs text-white bg-transparent outline-none"
+              style={{ border: `1px solid ${sponsorForm.prize ? '#1e2d42' : 'rgba(239,68,68,.4)'}` }}
+              placeholder="Prize description (required) — e.g. Winner gets 500 cash"
+              value={sponsorForm.prize}
+              onChange={(e) => setSponsorForm({ ...sponsorForm, prize: e.target.value })}
+            />
+            <select
+              className="w-full rounded-lg px-3 py-2 text-xs text-white outline-none"
+              style={{ background: '#0f1623', border: '1px solid #1e2d42' }}
+              value={sponsorForm.prizeType}
+              onChange={(e) => setSponsorForm({ ...sponsorForm, prizeType: e.target.value })}
+            >
+              <option value="">Prize type (optional)</option>
+              <option value="CASH">💵 Cash</option>
+              <option value="DRINKS">🍷 Drinks</option>
+              <option value="FNB">🍽️ F&amp;B</option>
+              <option value="GIFTS">🎁 Gifts</option>
+              <option value="OTHERS">⭐ Others</option>
+            </select>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sponsorForm.requireApproval}
+                onChange={(e) => setSponsorForm({ ...sponsorForm, requireApproval: e.target.checked })}
+                className="rounded"
+              />
+              <span className="text-xs" style={{ color: '#94a3b8' }}>Require join approval from participants</span>
+            </label>
+            {sponsorContestMutation.error && (
+              <p className="text-xs" style={{ color: '#f87171' }}>
+                {sponsorContestMutation.error.response?.data?.detail || 'Something went wrong'}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => sponsorContestMutation.mutate()}
+                disabled={sponsorContestMutation.isPending || !sponsorForm.prize}
+                className="flex-1 py-2 rounded-lg text-xs font-semibold transition"
+                style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff' }}
+              >
+                {sponsorContestMutation.isPending ? 'Confirming…' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => setShowSponsorForm(false)}
+                className="px-3 py-2 rounded-lg text-xs font-semibold"
+                style={{ background: '#1e2d42', color: '#94a3b8' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSponsorForm(true)}
+            className="w-full py-2.5 rounded-xl text-xs font-semibold transition"
+            style={{ background: 'rgba(234,179,8,.08)', border: '1px dashed rgba(234,179,8,.4)', color: '#facc15' }}
+          >
+            💛 Sponsor/Manage this contest
+          </button>
+        )
+      )}
+
+      {/* ── Sponsor info box ── */}
+      {contest.sponsor_id && (
+        <div className="rounded-xl p-3 flex items-start justify-between gap-3"
+          style={{ background: '#0f1623', border: '1px solid rgba(234,179,8,.3)' }}>
+          <div className="min-w-0">
+            <p className="text-xs font-bold" style={{ color: '#facc15' }}>Sponsored/Managed by {contest.sponsor_name || 'Sponsor'}</p>
+            {contest.sponsor_contact && (
+              <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{contest.sponsor_contact}</p>
+            )}
+            {contest.prize_type && (
+              <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
+                {{'CASH':'💵','DRINKS':'🍷','FNB':'🍽️','GIFTS':'🎁','OTHERS':'⭐'}[contest.prize_type]} {{'CASH':'Cash','DRINKS':'Drinks','FNB':'F&B','GIFTS':'Gifts','OTHERS':'Others'}[contest.prize_type]}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              const apiBase = import.meta.env.VITE_API_URL || window.location.origin
+              const shareUrl = `${apiBase}/api/contests/share/${id}`
+              navigator.clipboard.writeText(shareUrl).then(() => {
+                setLinkCopied(true)
+                setTimeout(() => setLinkCopied(false), 2000)
+              })
+            }}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg shrink-0 transition"
+            style={{ background: 'rgba(234,179,8,.12)', border: '1px solid rgba(234,179,8,.3)', color: '#facc15' }}
+          >
+            {linkCopied ? '✓ Copied' : '� Share'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Manage Requests (sponsor view) ── */}
+      {contest.sponsor_id && user?.id === contest.sponsor_id && joinRequests && joinRequests.length > 0 && (
+        <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#0f1623', border: '1px solid rgba(16,185,129,.25)' }}>
+          <p className="text-xs font-bold text-white">Join Requests</p>
+          {joinRequests.map((req) => (
+            <div key={req.id} className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white truncate">{req.user_name}</p>
+                <p className="text-[0.6rem]" style={{ color: req.status === 'APPROVED' ? '#34d399' : req.status === 'REJECTED' ? '#f87171' : '#94a3b8' }}>
+                  {req.status}
+                </p>
+              </div>
+              {req.status === 'PENDING' && (
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'APPROVED' })}
+                    className="text-xs px-2 py-1 rounded-lg font-semibold"
+                    style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.4)', color: '#34d399' }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'REJECTED' })}
+                    className="text-xs px-2 py-1 rounded-lg font-semibold"
+                    style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Single tab bar ── */}
       <div className="flex gap-2">
@@ -273,6 +458,31 @@ export default function ContestDetailPage() {
         /* My Team tab */
         myTeam ? (
           <div className="flex flex-col gap-3">
+            {/* Join request banner (for sponsored contests with approval required, non-sponsor users) */}
+            {contest.sponsor_id && contest.join_approval_required && user?.id !== contest.sponsor_id && (
+              myJoinRequest == null ? (
+                <div className="rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
+                  style={{ background: 'rgba(234,179,8,.08)', border: '1px solid rgba(234,179,8,.3)' }}>
+                  <p className="text-xs" style={{ color: '#facc15' }}>This contest requires sponsor approval to participate.</p>
+                  <button
+                    onClick={() => requestJoinMutation.mutate()}
+                    disabled={requestJoinMutation.isPending}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0 transition"
+                    style={{ background: 'rgba(234,179,8,.15)', border: '1px solid rgba(234,179,8,.4)', color: '#facc15' }}
+                  >
+                    {requestJoinMutation.isPending ? 'Requesting…' : 'Request to Join'}
+                  </button>
+                </div>
+              ) : myJoinRequest.status === 'PENDING' ? (
+                <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(148,163,184,.08)', border: '1px solid rgba(148,163,184,.2)', color: '#94a3b8' }}>
+                  ⏳ Join request pending sponsor approval
+                </div>
+              ) : myJoinRequest.status === 'REJECTED' ? (
+                <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171' }}>
+                  ✗ Join request declined by sponsor
+                </div>
+              ) : null
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gradient text-2xl font-black">{myTeam.total_points.toFixed(1)}</p>
@@ -292,8 +502,9 @@ export default function ContestDetailPage() {
               {myTeam.players
                 .sort((a, b) => b.points_earned - a.points_earned)
                 .map((utp) => (
-                  <div
+                  <Link
                     key={utp.id}
+                    to={`/contests/${id}/players/${utp.player.id}`}
                     className="rounded-xl px-3 py-2 flex items-center justify-between"
                     style={{
                       background: '#0f1623',
@@ -324,7 +535,7 @@ export default function ContestDetailPage() {
                       <p className="font-bold text-sm text-emerald-400">{utp.points_earned.toFixed(1)}</p>
                       <p className="text-xs" style={{ color: '#475569' }}>pts</p>
                     </div>
-                  </div>
+                  </Link>
                 ))}
             </div>
           </div>

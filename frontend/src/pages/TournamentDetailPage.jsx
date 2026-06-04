@@ -57,13 +57,23 @@ function TournamentContestCard({ contest }) {
       : <span style={{ color: '#64748b' }}>{new Date(contest.match_date).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
   }
 
-  const prizeTxt = (contest.prize || 'Winner Badge').replace('Winner Badge', 'Badge')
+  const prizeIcon = { CASH: '💵', DRINKS: '🍷', FNB: '🍽️', GIFTS: '🎁', OTHERS: '⭐' }[contest.prize_type] || '🏆'
 
   return (
     <Link
       to={`/contests/${contest.id}`}
       className="rounded-xl px-4 py-3 transition hover:brightness-110 block"
-      style={{ background: '#0f1623', border: `1px solid ${isLive ? 'rgba(239,68,68,.35)' : '#1e2d42'}` }}
+      style={{
+        background: isLive
+          ? 'radial-gradient(120% 140% at 0% 0%, rgba(239,68,68,.12) 0%, rgba(239,68,68,0) 45%), linear-gradient(145deg, #111827 0%, #0f172a 52%, #0b1220 100%)'
+          : contest.is_completed
+            ? 'radial-gradient(120% 140% at 100% 0%, rgba(100,116,139,.10) 0%, rgba(100,116,139,0) 45%), linear-gradient(145deg, #101826 0%, #0e1624 55%, #0a1320 100%)'
+            : 'radial-gradient(120% 140% at 0% 0%, rgba(16,185,129,.12) 0%, rgba(16,185,129,0) 45%), linear-gradient(145deg, #111b2d 0%, #0f172a 55%, #0a1320 100%)',
+        border: `1px solid ${isLive ? 'rgba(239,68,68,.35)' : '#1e2d42'}`,
+        boxShadow: isLive
+          ? '0 10px 28px rgba(239,68,68,.10), inset 0 1px 0 rgba(248,113,113,.16)'
+          : '0 10px 28px rgba(2,6,23,.32), inset 0 1px 0 rgba(148,163,184,.10)',
+      }}
     >
       {/* Match number */}
       {contest.match_number != null && (
@@ -83,17 +93,19 @@ function TournamentContestCard({ contest }) {
       <div className="mt-2 text-center text-xs">
         {statusNode}
       </div>
-      {/* Participants + prize strip (live & upcoming only) */}
+      {/* Prize + sponsor strip (live & upcoming only) */}
       {!contest.is_completed && (
         <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid #1e2d42' }}>
-          <div className="flex items-center gap-1">
-            <img src="/card-icons/participants.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span className="text-xs font-bold text-white">{contest.participant_count ?? 0}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-sm leading-none">{prizeIcon}</span>
+            <span className="text-xs font-bold text-white truncate">{(contest.prize || 'Winner Badge').replace('Winner Badge', 'Badge')}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <img src="/card-icons/prize%20pool.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span className="text-xs font-bold text-white">{prizeTxt}</span>
-          </div>
+          <span className="text-[0.55rem] px-1.5 py-0.5 rounded shrink-0 ml-2"
+            style={contest.sponsor_name
+              ? { background: 'rgba(234,179,8,.1)', color: '#facc15' }
+              : { background: 'rgba(148,163,184,.08)', color: '#64748b' }}>
+            💛 {contest.sponsor_name || 'Open'}
+          </span>
         </div>
       )}
     </Link>

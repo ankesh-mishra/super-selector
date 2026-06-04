@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import Contest, Player, User, UserTeam, UserTeamPlayer
+from app.models import Contest, ContestJoinRequest, Player, User, UserTeam, UserTeamPlayer
 from app.schemas import UserTeamCreate, UserTeamOut
 from app.services.team_validator import TeamValidationError, validate_team_selection
 router = APIRouter()
@@ -29,6 +29,31 @@ async def create_user_team(
 
     if contest.is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked. Team cannot be created.")
+
+    # Sponsor approval gate (sponsor themselves are always allowed)
+    if contest.sponsor_id and contest.join_approval_required and contest.sponsor_id != current_user.id:
+        req_result = await db.execute(
+            select(ContestJoinRequest).where(
+                ContestJoinRequest.contest_id == contest_id,
+                ContestJoinRequest.user_id == current_user.id,
+            )
+        )
+        join_req = req_result.scalar_one_or_none()
+        if join_req is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This contest requires sponsor approval. Request to join first.",
+            )
+        if join_req.status == "PENDING":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your join request is pending sponsor approval.",
+            )
+        if join_req.status == "REJECTED":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your join request was declined by the sponsor.",
+            )
 
     # One team per user per contest
     existing = await db.execute(

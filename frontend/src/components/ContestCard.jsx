@@ -19,6 +19,8 @@ function formatPrize(prize) {
   return (prize || 'Winner Badge').replace('Winner Badge', 'Badge')
 }
 
+const PRIZE_ICON = { CASH: '💵', DRINKS: '🍷', FNB: '🍽️', GIFTS: '🎁', OTHERS: '⭐' }
+
 /**
  * Shared contest card — used on the home page (size="sm") and tournament
  * detail page (size="md").
@@ -32,7 +34,8 @@ function formatPrize(prize) {
  *   teamBName       — right team name
  *   topRight        — label shown top-right (e.g. tournament name or "Match #1")
  *   prize           — prize string
- *   participantCount — number | null  (null = don't render the cell)
+ *   prizeType       — DRINKS | FNB | GIFTS | OTHERS | null
+ *   sponsorName     — sponsor/manager name string | null
  *   size            — "sm" (w-44, horizontal scroll) | "md" (full-width, vertical list)
  */
 export default function ContestCard({
@@ -44,7 +47,8 @@ export default function ContestCard({
   teamBName,
   topRight,
   prize,
-  participantCount,
+  prizeType,
+  sponsorName,
   size = 'md',
 }) {
   const countdown = useCountdown(matchDate)
@@ -145,31 +149,20 @@ export default function ContestCard({
       </div>
 
       {/* ── Info strip ── */}
-      <div className={`flex items-center justify-between ${px} py-1.5`}
+      <div className={`flex items-center justify-between gap-1 ${px} py-1.5`}
         style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
-        {/* Left: participant count when available */}
-        {participantCount != null && (
-          <div className="flex items-center gap-1">
-            <img src="/card-icons/participants.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span className="text-[0.6rem] font-bold text-white">
-              {participantCount > 0 ? participantCount : '—'}
-            </span>
-          </div>
-        )}
-        {/* Right: prize when live, countdown when open */}
-        {isLive ? (
-          <div className={`flex items-center gap-1 ${participantCount == null ? 'ml-auto' : ''}`}>
-            <img src="/card-icons/prize%20pool.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span className="text-[0.6rem] font-bold text-white truncate max-w-[70px]">
-              {formatPrize(prize)}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1">
-            <img src="/card-icons/starts%20in.png" alt="" className="w-3.5 h-3.5 object-contain shrink-0" />
-            <span className="text-[0.6rem] font-bold tabular-nums" style={{ color: timeColor }}>{timeVal}</span>
-          </div>
-        )}
+        {/* Prize icon + text */}
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[0.65rem] leading-none">{PRIZE_ICON[prizeType] || '🏆'}</span>
+          <span className="text-[0.6rem] font-bold text-white truncate">{formatPrize(prize)}</span>
+        </div>
+        {/* Sponsor name */}
+        <span className="text-[0.5rem] truncate shrink-0 max-w-[60px] px-1 py-0.5 rounded"
+          style={sponsorName
+            ? { background: 'rgba(234,179,8,.1)', color: '#facc15' }
+            : { background: 'rgba(148,163,184,.08)', color: '#64748b' }}>
+          💛 {sponsorName || 'Open'}
+        </span>
       </div>
     </Link>
   )

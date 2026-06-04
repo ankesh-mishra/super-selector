@@ -523,18 +523,28 @@ function ContestsTab() {
 }
 
 function ContestCreateSubTab({ allTeams, tournaments, qc, setMsg }) {
-  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '', prize: 'Winner Badge' })
+  const [form, setForm] = useState({ tournament_id: '', team_a_id: '', team_b_id: '', match_date: '', registration_cutoff: '', prize: 'Winner Badge', sponsorId: '', sponsorContact: '', prizeType: '' })
   const { data: tournamentDetail } = useQuery({
     queryKey: ['admin-tournament', form.tournament_id],
     queryFn: () => adminApi.getTournament(form.tournament_id).then((r) => r.data),
     enabled: !!form.tournament_id,
+  })
+  const { data: users } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => adminApi.users().then((r) => r.data),
   })
   const availableTeams = form.tournament_id && tournamentDetail ? (tournamentDetail.teams || []) : (allTeams || [])
   const teamA = availableTeams.find((t) => t.id === form.team_a_id)
   const teamB = availableTeams.find((t) => t.id === form.team_b_id)
   const previewName = teamA && teamB ? `${teamA.name} v ${teamB.name}` : null
   const create = useMutation({
-    mutationFn: () => adminApi.createContest({ ...form, tournament_id: form.tournament_id || null }),
+    mutationFn: () => adminApi.createContest({
+      ...form,
+      tournament_id: form.tournament_id || null,
+      sponsor_id: form.sponsorId || null,
+      sponsor_contact: form.sponsorContact || null,
+      prize_type: form.prizeType || null,
+    }),
     onSuccess: () => { qc.invalidateQueries(['contests']); setMsg('Contest created!') },
     onError: (e) => setMsg(e.response?.data?.detail || 'Error', 'error'),
   })
@@ -557,6 +567,23 @@ function ContestCreateSubTab({ allTeams, tournaments, qc, setMsg }) {
       <Input label="Match date" type="datetime-local" value={form.match_date} onChange={(e) => setForm({ ...form, match_date: e.target.value })} />
       <Input label="Registration cutoff" type="datetime-local" value={form.registration_cutoff} onChange={(e) => setForm({ ...form, registration_cutoff: e.target.value })} />
       <Input label="Prize" value={form.prize} onChange={(e) => setForm({ ...form, prize: e.target.value })} />
+      <Select label="Sponsor/Manager (optional)" value={form.sponsorId} onChange={(e) => setForm({ ...form, sponsorId: e.target.value, sponsorContact: '', prizeType: '' })}>
+        <option value="">— no sponsor —</option>
+        {users?.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+      </Select>
+      {form.sponsorId && (
+        <>
+          <Input label="Description (optional)" value={form.sponsorContact} placeholder="e.g. Pool 50 each, winner takes all; UPI: xxxx@xyz" onChange={(e) => setForm({ ...form, sponsorContact: e.target.value })} />
+          <Select label="Prize type" value={form.prizeType} onChange={(e) => setForm({ ...form, prizeType: e.target.value })}>
+            <option value="">— select —</option>
+            <option value="CASH">💵 Cash</option>
+            <option value="DRINKS">🍷 Drinks</option>
+            <option value="FNB">🍽️ F&amp;B</option>
+            <option value="GIFTS">🎁 Gifts</option>
+            <option value="OTHERS">⭐ Others</option>
+          </Select>
+        </>
+      )}
       <Btn disabled={!canCreate || create.isPending} onClick={() => create.mutate()}>Create Contest</Btn>
     </div>
   )

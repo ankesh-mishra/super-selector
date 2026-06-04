@@ -1,17 +1,76 @@
 import uuid
 from datetime import datetime, timezone
+from html import escape
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.database import get_db
-from app.models import Contest, ContestGame, ContestGamePlayer, Player, Team, UserTeam
-from app.schemas import ContestOut, ContestDetailOut, ContestCardOut
+from app.dependencies import get_current_user
+from app.models import Contest, ContestGame, ContestGamePlayer, ContestJoinRequest, Player, Team, User, UserTeam
+from app.schemas import ContestOut, ContestDetailOut, ContestCardOut, ContestJoinRequestOut, JoinRequestUpdate, SponsorContestRequest
 
 router = APIRouter()
+
+
+@router.get("/share/{contest_id}", response_class=HTMLResponse)
+async def share_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+    """Returns an HTML page with Open Graph meta tags for rich WhatsApp / social previews."""
+    settings = get_settings()
+    result = await db.execute(
+        select(Contest)
+        .options(selectinload(Contest.team_a).selectinload(Team.players), selectinload(Contest.team_b), selectinload(Contest.sponsor))
+        .where(Contest.id == contest_id)
+    )
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    dest = f"{settings.frontend_url}/contests/{contest_id}"
+    title = escape(f"{contest.team_a.name} vs {contest.team_b.name}")
+    prize_icons = {"CASH": "💵", "DRINKS": "🍷", "FNB": "🍽️", "GIFTS": "🎁", "OTHERS": "⭐"}
+    prize_icon = prize_icons.get(contest.prize_type or "", "🏆")
+    prize_line = f"{prize_icon} {escape(contest.prize)}" if contest.prize else ""
+    sponsor_line = f"Sponsored/Managed by {escape(contest.sponsor.name)}" if contest.sponsor else ""
+    desc_parts = [p for p in [prize_line, sponsor_line] if p]
+    description = escape(" · ".join(desc_parts) if desc_parts else "Fantasy contest on SuperSelector")
+
+    # Use first real-captain photo as OG image if available, else app logo
+    og_image = ""
+    for p in contest.team_a.players:
+        if p.is_real_captain and p.photo_url:
+            og_image = p.photo_url
+            break
+    if not og_image:
+        og_image = f"{settings.frontend_url}/sports-logos/badminton.png"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{title}</title>
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{dest}">
+  <meta property="og:title" content="{title}">
+  <meta property="og:description" content="{description}">
+  <meta property="og:image" content="{og_image}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{title}">
+  <meta name="twitter:description" content="{description}">
+  <meta name="twitter:image" content="{og_image}">
+  <meta http-equiv="refresh" content="0; url={dest}">
+</head>
+<body style="background:#080d14;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+  <a href="{dest}" style="color:#34d399;font-size:1rem">Opening contest…</a>
+  <script>window.location.replace("{dest}")</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 @router.get("/trending", response_model=list[ContestCardOut])
@@ -33,8 +92,10 @@ async def trending_contests(db: Annotated[AsyncSession, Depends(get_db)]):
             selectinload(Contest.team_a).selectinload(Team.players),
             selectinload(Contest.team_b).selectinload(Team.players),
             selectinload(Contest.tournament),
+            selectinload(Contest.sponsor),
         )
         .where(Contest.is_completed == False)
+        .order_by(Contest.sponsor_id.is_(None), Contest.match_date)
         .limit(20)
     )
     contests = result.scalars().all()
@@ -64,12 +125,15 @@ async def trending_contests(db: Annotated[AsyncSession, Depends(get_db)]):
             team_a_captain_name=next((p.name for p in c.team_a.players if p.is_real_captain), None),
             team_b_captain_name=next((p.name for p in c.team_b.players if p.is_real_captain), None),
             prize=c.prize,
+            prize_type=c.prize_type,
+            sponsor_name=c.sponsor.name if c.sponsor else None,
         )
         for c in contests
     ]
 
     cards.sort(key=lambda x: (
-        0 if (x.is_locked and not x.is_completed) else 1,  # live first
+        0 if x.sponsor_name else 1,                         # sponsored first
+        0 if (x.is_locked and not x.is_completed) else 1,  # live next
         -x.participant_count,                               # most participants
         x.match_date,                                       # earliest date
     ))
@@ -92,6 +156,7 @@ async def get_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends
             selectinload(Contest.team_b).selectinload(Team.players),
             selectinload(Contest.contest_games).selectinload(ContestGame.game_players).selectinload(ContestGamePlayer.player).selectinload(Player.team),
             selectinload(Contest.tournament),
+            selectinload(Contest.sponsor),
         )
         .where(Contest.id == contest_id)
     )
@@ -101,4 +166,168 @@ async def get_contest(contest_id: uuid.UUID, db: Annotated[AsyncSession, Depends
     out = ContestDetailOut.model_validate(contest)
     out.team_a_captain_name = next((p.name for p in contest.team_a.players if p.is_real_captain), None)
     out.team_b_captain_name = next((p.name for p in contest.team_b.players if p.is_real_captain), None)
+    out.sponsor_name = contest.sponsor.name if contest.sponsor else None
+    return out
+
+
+# ──────────────────────────────────────────────
+# Join Requests (sponsor-gated contests)
+# ──────────────────────────────────────────────
+
+@router.post("/{contest_id}/join-request", response_model=ContestJoinRequestOut, status_code=status.HTTP_201_CREATED)
+async def request_to_join(
+    contest_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Create a join request for a sponsored contest."""
+    result = await db.execute(select(Contest).where(Contest.id == contest_id))
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    if not contest.sponsor_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This contest does not require join approval")
+    if contest.is_locked:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked")
+
+    existing = await db.execute(
+        select(ContestJoinRequest).where(
+            ContestJoinRequest.contest_id == contest_id,
+            ContestJoinRequest.user_id == current_user.id,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You have already submitted a join request")
+
+    req = ContestJoinRequest(contest_id=contest_id, user_id=current_user.id, status="PENDING")
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    out = ContestJoinRequestOut(
+        id=req.id, contest_id=req.contest_id, user_id=req.user_id,
+        user_name=current_user.name, status=req.status, created_at=req.created_at,
+    )
+    return out
+
+
+@router.get("/{contest_id}/my-join-request", response_model=ContestJoinRequestOut | None)
+async def my_join_request(
+    contest_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Get the current user's join request for a contest (null if none)."""
+    result = await db.execute(
+        select(ContestJoinRequest)
+        .options(selectinload(ContestJoinRequest.user))
+        .where(
+            ContestJoinRequest.contest_id == contest_id,
+            ContestJoinRequest.user_id == current_user.id,
+        )
+    )
+    req = result.scalar_one_or_none()
+    if req is None:
+        return None
+    return ContestJoinRequestOut(
+        id=req.id, contest_id=req.contest_id, user_id=req.user_id,
+        user_name=req.user.name, status=req.status, created_at=req.created_at,
+    )
+
+
+@router.get("/{contest_id}/join-requests", response_model=list[ContestJoinRequestOut])
+async def list_join_requests(
+    contest_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """List all join requests — sponsor or admin only."""
+    result = await db.execute(select(Contest).where(Contest.id == contest_id))
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    if contest.sponsor_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the sponsor or an admin can view join requests")
+
+    result = await db.execute(
+        select(ContestJoinRequest)
+        .options(selectinload(ContestJoinRequest.user))
+        .where(ContestJoinRequest.contest_id == contest_id)
+        .order_by(ContestJoinRequest.created_at)
+    )
+    requests = result.scalars().all()
+    return [
+        ContestJoinRequestOut(
+            id=r.id, contest_id=r.contest_id, user_id=r.user_id,
+            user_name=r.user.name, status=r.status, created_at=r.created_at,
+        )
+        for r in requests
+    ]
+
+
+@router.patch("/{contest_id}/join-requests/{user_id}", response_model=ContestJoinRequestOut)
+async def update_join_request(
+    contest_id: uuid.UUID,
+    user_id: uuid.UUID,
+    body: JoinRequestUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Approve or reject a join request — sponsor or admin only."""
+    if body.status not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="status must be APPROVED or REJECTED")
+
+    result = await db.execute(select(Contest).where(Contest.id == contest_id))
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    if contest.sponsor_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the sponsor or an admin can manage join requests")
+
+    result = await db.execute(
+        select(ContestJoinRequest)
+        .options(selectinload(ContestJoinRequest.user))
+        .where(ContestJoinRequest.contest_id == contest_id, ContestJoinRequest.user_id == user_id)
+    )
+    req = result.scalar_one_or_none()
+    if req is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Join request not found")
+
+    req.status = body.status
+    await db.commit()
+    await db.refresh(req)
+    return ContestJoinRequestOut(
+        id=req.id, contest_id=req.contest_id, user_id=req.user_id,
+        user_name=req.user.name, status=req.status, created_at=req.created_at,
+    )
+
+
+@router.post("/{contest_id}/sponsor", response_model=ContestOut)
+async def self_sponsor_contest(
+    contest_id: uuid.UUID,
+    body: SponsorContestRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Allow a logged-in user to self-sponsor an unsponsored, open contest."""
+    result = await db.execute(select(Contest).where(Contest.id == contest_id))
+    contest = result.scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+    if contest.is_locked:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked")
+    if contest.sponsor_id is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This contest already has a sponsor")
+
+    contest.sponsor_id = current_user.id
+    contest.sponsor_contact = body.sponsor_contact
+    contest.join_approval_required = body.join_approval_required
+    if body.prize_type is not None:
+        contest.prize_type = body.prize_type
+    if body.prize:
+        contest.prize = body.prize
+
+    await db.commit()
+    await db.refresh(contest)
+    out = ContestOut.model_validate(contest)
+    out.sponsor_name = current_user.name
     return out

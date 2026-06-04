@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.models import GenderEnum, GameTypeEnum, SportEnum
+from app.models import GenderEnum, GameTypeEnum, SportEnum, PrizeTypeEnum
 
 
 # ──────────────────────────────────────────────
@@ -209,6 +209,10 @@ class ContestCreate(BaseModel):
     registration_cutoff: datetime
     prize: str = 'Winner Badge'
     external_id: Optional[str] = None
+    sponsor_id: Optional[uuid.UUID] = None
+    sponsor_contact: Optional[str] = None
+    prize_type: Optional[PrizeTypeEnum] = None
+    join_approval_required: bool = False
 
 
 class ContestUpdate(BaseModel):
@@ -219,6 +223,10 @@ class ContestUpdate(BaseModel):
     is_completed: Optional[bool] = None
     prize: Optional[str] = None
     external_id: Optional[str] = None
+    sponsor_id: Optional[uuid.UUID] = None
+    sponsor_contact: Optional[str] = None
+    prize_type: Optional[PrizeTypeEnum] = None
+    join_approval_required: Optional[bool] = None
 
 
 class ContestCardOut(BaseModel):
@@ -235,6 +243,8 @@ class ContestCardOut(BaseModel):
     team_a_captain_name: Optional[str] = None
     team_b_captain_name: Optional[str] = None
     prize: str = 'Winner Badge'
+    prize_type: Optional[PrizeTypeEnum] = None
+    sponsor_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -253,6 +263,11 @@ class ContestOut(BaseModel):
     prize: str = 'Winner Badge'
     external_id: Optional[str] = None
     created_at: datetime
+    sponsor_id: Optional[uuid.UUID] = None
+    sponsor_name: Optional[str] = None
+    sponsor_contact: Optional[str] = None
+    prize_type: Optional[PrizeTypeEnum] = None
+    join_approval_required: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -269,6 +284,8 @@ class ContestBriefOut(BaseModel):
     is_locked: bool
     is_completed: bool
     prize: str = 'Winner Badge'
+    prize_type: Optional[PrizeTypeEnum] = None
+    sponsor_name: Optional[str] = None
     participant_count: int = 0
     winning_team_name: Optional[str] = None
     team_a: TeamOut
@@ -414,3 +431,37 @@ class OverallLeaderboardEntry(BaseModel):
 ContestBriefOut.model_rebuild()
 ContestDetailOut.model_rebuild()
 TournamentDetailOut.model_rebuild()
+
+
+# ──────────────────────────────────────────────
+# Contest Join Requests (sponsor approval)
+# ──────────────────────────────────────────────
+
+class ContestJoinRequestOut(BaseModel):
+    id: uuid.UUID
+    contest_id: uuid.UUID
+    user_id: uuid.UUID
+    user_name: str
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JoinRequestUpdate(BaseModel):
+    status: str  # "APPROVED" or "REJECTED"
+
+
+class SponsorContestRequest(BaseModel):
+    sponsor_contact: Optional[str] = None
+    prize_type: Optional[PrizeTypeEnum] = None
+    prize: Optional[str] = None
+    join_approval_required: bool = False
+
+
+class UserBriefOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: str
+
+    model_config = {"from_attributes": True}
