@@ -10,6 +10,7 @@ import PlayerAvatar from '../components/PlayerAvatar'
 import ContestCard from '../components/ContestCard'
 import { getTournamentLogo } from '../utils/tournamentLogos'
 import { getTeamCaptain } from '../utils/teamLogos'
+import { formatPoints } from '../utils/points'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -346,7 +347,7 @@ function MyContests({ myContests }) {
             {/* Points + rank */}
             <div className="shrink-0 text-right">
               <div className="flex items-baseline gap-0.5 justify-end">
-                <span className="text-sm font-black text-gradient">{mc.total_points}</span>
+                <span className="text-sm font-black text-gradient">{formatPoints(mc.total_points)}</span>
                 <span className="text-[0.6rem]" style={{ color: '#64748b' }}>pts</span>
               </div>
               {mc.rank != null && (
@@ -430,7 +431,7 @@ function Podium({ entries }) {
               <p className="text-[0.6rem] text-center truncate w-full px-1" style={{ color: '#94a3b8' }}>{e.user_name}</p>
             )}
             <p className="text-xs font-black" style={{ color: rank === 1 ? '#34d399' : '#94a3b8' }}>
-              {e.total_points.toFixed(1)}
+              {formatPoints(e.total_points)}
             </p>
             <div
               className={`w-full rounded-t-lg mt-0.5 ${podiumCls}`}

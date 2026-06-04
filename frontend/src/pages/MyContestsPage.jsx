@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { myContestsApi } from '../api/endpoints'
+import { formatPoints } from '../utils/points'
 
 function statusChip(contest) {
   if (contest.is_completed) return { label: 'Completed', cls: 'badge-completed' }
@@ -43,7 +44,7 @@ function ContestRow({ mc }) {
       </div>
       {/* Right: points + rank */}
       <div className="shrink-0 text-right">
-        <span className="text-gradient font-black text-lg leading-none">{mc.total_points}</span>
+        <span className="text-gradient font-black text-lg leading-none">{formatPoints(mc.total_points)}</span>
         <span className="text-[0.65rem] block" style={{ color: '#64748b' }}>pts</span>
         <span className="text-[0.6rem] block mt-0.5" style={{ color: '#475569' }}>{rankDisplay}</span>
       </div>

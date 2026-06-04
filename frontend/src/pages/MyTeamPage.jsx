@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { contestsApi, userTeamsApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
 import PlayerAvatar from '../components/PlayerAvatar'
+import { formatPoints } from '../utils/points'
 
 export default function MyTeamPage() {
   const { id: contestId } = useParams()
@@ -30,7 +31,7 @@ export default function MyTeamPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">My Team</h2>
         <div className="text-right">
-          <p className="text-gradient text-2xl font-black">{team.total_points.toFixed(1)}</p>
+          <p className="text-gradient text-2xl font-black">{formatPoints(team.total_points)}</p>
           <p className="text-xs" style={{ color: '#64748b' }}>Total Points</p>
         </div>
       </div>
@@ -78,7 +79,7 @@ export default function MyTeamPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold text-sm text-emerald-400">{utp.points_earned.toFixed(1)}</p>
+                <p className="font-bold text-sm text-emerald-400">{formatPoints(utp.points_earned)}</p>
                 <p className="text-xs" style={{ color: '#475569' }}>pts</p>
               </div>
             </div>

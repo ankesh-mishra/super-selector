@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { playersApi, tournamentsApi } from '../api/endpoints'
 import PlayerAvatar from '../components/PlayerAvatar'
+import { formatPoints } from '../utils/points'
 
 const TABS = ['By Selection', 'By Points']
 
@@ -102,7 +103,7 @@ export default function PlayersPage() {
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-black text-emerald-400">
-                  {tab === 'By Selection' ? p.selection_count : p.total_points?.toFixed(1)}
+                  {tab === 'By Selection' ? p.selection_count : formatPoints(p.total_points)}
                 </p>
                 <p className="text-[0.65rem]" style={{ color: '#475569' }}>
                   {tab === 'By Selection' ? 'selected' : 'pts'}
