@@ -370,7 +370,7 @@ export default function ContestDetailPage() {
           <button
             onClick={() => {
               const apiBase = import.meta.env.VITE_API_URL || window.location.origin
-              const shareUrl = `${apiBase}/api/contests/share/${id}?v=${Date.now()}`
+              const shareUrl = `${apiBase}/api/contests/s/${id}`
               navigator.clipboard.writeText(shareUrl).then(() => {
                 setLinkCopied(true)
                 setTimeout(() => setLinkCopied(false), 2000)
@@ -379,7 +379,7 @@ export default function ContestDetailPage() {
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg shrink-0 transition"
             style={{ background: 'rgba(234,179,8,.12)', border: '1px solid rgba(234,179,8,.3)', color: '#facc15' }}
           >
-            {linkCopied ? '✓ Copied' : '� Share'}
+            {linkCopied ? '✓ Copied' : '🔗 Share'}
           </button>
         </div>
       )}

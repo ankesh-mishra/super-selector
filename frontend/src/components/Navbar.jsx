@@ -93,6 +93,7 @@ export default function Navbar() {
           <NavItem to="/" icon="/Home.png" label="Home" onClick={close} />
           <NavItem to="/my-contests" icon="/My Contests.png" label="My Contests" onClick={close} />
           <NavItem to="/tournaments" icon="/Tournaments.png" label="Tournaments" onClick={close} />
+          <NavItem to="/scoring-rules" icon="/About.png" label="Scoring Rules" onClick={close} />
           <NavItem to="/profile" icon="/My Profile.png" label="My Profile" onClick={close} />
           <NavItem to="/about" icon="/About.png" label="About" onClick={close} />
           {user?.is_admin && (
