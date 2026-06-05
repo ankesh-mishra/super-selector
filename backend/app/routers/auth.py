@@ -4,14 +4,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import jwt
 from passlib.context import CryptContext
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import Contest, User, UserTeam
+from app.models import Contest, ContestJoinRequest, User, UserTeam
 from app.schemas import (
     LoginRequest, MyContestOut, RegisterRequest,
     TokenResponse, UserOut, UserProfileUpdate,
@@ -101,7 +101,23 @@ async def my_contests(
                 selectinload(Contest.tournament),
             )
         )
+        .join(Contest, Contest.id == UserTeam.contest_id)
+        .outerjoin(
+            ContestJoinRequest,
+            and_(
+                ContestJoinRequest.contest_id == UserTeam.contest_id,
+                ContestJoinRequest.user_id == UserTeam.user_id,
+            ),
+        )
         .where(UserTeam.user_id == current_user.id)
+        .where(
+            or_(
+                Contest.sponsor_id.is_(None),
+                Contest.join_approval_required.is_(False),
+                Contest.sponsor_id == UserTeam.user_id,
+                ContestJoinRequest.status == "APPROVED",
+            )
+        )
         .order_by(UserTeam.created_at.desc())
     )
     user_teams = result.scalars().all()
@@ -115,7 +131,23 @@ async def my_contests(
     # Total participants per contest
     totals_result = await db.execute(
         select(UserTeam.contest_id, func.count(UserTeam.id).label("total"))
+        .join(Contest, Contest.id == UserTeam.contest_id)
+        .outerjoin(
+            ContestJoinRequest,
+            and_(
+                ContestJoinRequest.contest_id == UserTeam.contest_id,
+                ContestJoinRequest.user_id == UserTeam.user_id,
+            ),
+        )
         .where(UserTeam.contest_id.in_(contest_ids))
+        .where(
+            or_(
+                Contest.sponsor_id.is_(None),
+                Contest.join_approval_required.is_(False),
+                Contest.sponsor_id == UserTeam.user_id,
+                ContestJoinRequest.status == "APPROVED",
+            )
+        )
         .group_by(UserTeam.contest_id)
     )
     totals = {row.contest_id: row.total for row in totals_result.all()}
@@ -125,9 +157,25 @@ async def my_contests(
     for ut in user_teams:
         better_result = await db.execute(
             select(func.count(UserTeam.id))
+            .join(Contest, Contest.id == UserTeam.contest_id)
+            .outerjoin(
+                ContestJoinRequest,
+                and_(
+                    ContestJoinRequest.contest_id == UserTeam.contest_id,
+                    ContestJoinRequest.user_id == UserTeam.user_id,
+                ),
+            )
             .where(
                 UserTeam.contest_id == ut.contest_id,
                 UserTeam.total_points > ut.total_points,
+            )
+            .where(
+                or_(
+                    Contest.sponsor_id.is_(None),
+                    Contest.join_approval_required.is_(False),
+                    Contest.sponsor_id == UserTeam.user_id,
+                    ContestJoinRequest.status == "APPROVED",
+                )
             )
         )
         rank_map[ut.contest_id] = better_result.scalar() + 1

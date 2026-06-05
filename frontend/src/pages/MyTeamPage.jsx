@@ -19,10 +19,18 @@ export default function MyTeamPage() {
     queryFn: () => contestsApi.get(contestId).then((r) => r.data),
   })
 
+  const { data: myJoinRequest } = useQuery({
+    queryKey: ['my-join-request', contestId],
+    queryFn: () => contestsApi.myJoinRequest(contestId).then((r) => r.data).catch(() => null),
+    enabled: !!(contest?.sponsor_id && contest?.join_approval_required),
+    refetchInterval: contest?.sponsor_id && contest?.join_approval_required ? 10_000 : false,
+  })
+
   if (isLoading) return <p className="text-center py-12 text-sm" style={{ color: '#64748b' }}>Loading…</p>
   if (isError || !team) return <p className="text-red-400 text-center py-12">No team found for this contest.</p>
 
   const canEdit = contest && !contest.is_locked
+  const requiresApproval = !!(contest?.sponsor_id && contest?.join_approval_required)
 
   return (
     <div className="flex flex-col gap-4">
@@ -35,6 +43,22 @@ export default function MyTeamPage() {
           <p className="text-xs" style={{ color: '#64748b' }}>Total Points</p>
         </div>
       </div>
+
+      {requiresApproval && (
+        myJoinRequest?.status === 'APPROVED' ? (
+          <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.3)', color: '#34d399' }}>
+            ✓ Approved by sponsor
+          </div>
+        ) : myJoinRequest?.status === 'REJECTED' ? (
+          <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171' }}>
+            ✗ Join request declined by sponsor
+          </div>
+        ) : (
+          <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(148,163,184,.08)', border: '1px solid rgba(148,163,184,.2)', color: '#94a3b8' }}>
+            ⏳ Pending approval
+          </div>
+        )
+      )}
 
       {canEdit && (
         <Link

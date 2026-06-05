@@ -2,13 +2,13 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user, get_optional_current_user
-from app.models import UserTeam, User, Contest, Tournament
+from app.models import UserTeam, User, Contest, Tournament, ContestJoinRequest
 from app.schemas import LeaderboardEntry, OverallLeaderboardEntry
 
 router = APIRouter()
@@ -24,7 +24,23 @@ async def contest_leaderboard(
     result = await db.execute(
         select(UserTeam)
         .options(selectinload(UserTeam.user))
+        .join(Contest, Contest.id == UserTeam.contest_id)
+        .outerjoin(
+            ContestJoinRequest,
+            and_(
+                ContestJoinRequest.contest_id == UserTeam.contest_id,
+                ContestJoinRequest.user_id == UserTeam.user_id,
+            ),
+        )
         .where(UserTeam.contest_id == contest_id)
+        .where(
+            or_(
+                Contest.sponsor_id.is_(None),
+                Contest.join_approval_required.is_(False),
+                Contest.sponsor_id == UserTeam.user_id,
+                ContestJoinRequest.status == "APPROVED",
+            )
+        )
         .order_by(UserTeam.total_points.desc())
     )
     user_teams = result.scalars().all()
@@ -63,7 +79,22 @@ async def tournament_leaderboard(
         )
         .join(User, User.id == UserTeam.user_id)
         .join(Contest, Contest.id == UserTeam.contest_id)
+        .outerjoin(
+            ContestJoinRequest,
+            and_(
+                ContestJoinRequest.contest_id == UserTeam.contest_id,
+                ContestJoinRequest.user_id == UserTeam.user_id,
+            ),
+        )
         .where(Contest.tournament_id == tournament_id)
+        .where(
+            or_(
+                Contest.sponsor_id.is_(None),
+                Contest.join_approval_required.is_(False),
+                Contest.sponsor_id == UserTeam.user_id,
+                ContestJoinRequest.status == "APPROVED",
+            )
+        )
         .group_by(UserTeam.user_id, User.name, User.team_name)
         .order_by(func.sum(UserTeam.total_points).desc())
     )

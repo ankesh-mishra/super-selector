@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, Response
 from PIL import Image, ImageDraw, ImageOps
 import httpx
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -220,7 +220,23 @@ async def trending_contests(db: Annotated[AsyncSession, Depends(get_db)]):
     contest_ids = [c.id for c in contests]
     count_result = await db.execute(
         select(UserTeam.contest_id, func.count(UserTeam.id).label("cnt"))
+        .join(Contest, Contest.id == UserTeam.contest_id)
+        .outerjoin(
+            ContestJoinRequest,
+            and_(
+                ContestJoinRequest.contest_id == UserTeam.contest_id,
+                ContestJoinRequest.user_id == UserTeam.user_id,
+            ),
+        )
         .where(UserTeam.contest_id.in_(contest_ids))
+        .where(
+            or_(
+                Contest.sponsor_id.is_(None),
+                Contest.join_approval_required.is_(False),
+                Contest.sponsor_id == UserTeam.user_id,
+                ContestJoinRequest.status == "APPROVED",
+            )
+        )
         .group_by(UserTeam.contest_id)
     )
     count_map = {row.contest_id: int(row.cnt) for row in count_result.all()}
@@ -301,8 +317,23 @@ async def request_to_join(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
     if not contest.sponsor_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This contest does not require join approval")
+    if not contest.join_approval_required:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Join approval is not enabled for this contest")
     if contest.is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked")
+
+    # Build team first, then request approval.
+    team_result = await db.execute(
+        select(UserTeam).where(
+            UserTeam.contest_id == contest_id,
+            UserTeam.user_id == current_user.id,
+        )
+    )
+    if team_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Build your team first, then request sponsor approval",
+        )
 
     existing = await db.execute(
         select(ContestJoinRequest).where(

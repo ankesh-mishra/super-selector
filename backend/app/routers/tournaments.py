@@ -2,12 +2,12 @@ import uuid
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Contest, ContestGame, Tournament, TournamentTeam, UserTeam
+from app.models import Contest, ContestGame, ContestJoinRequest, Tournament, TournamentTeam, UserTeam
 from app.schemas import TournamentDetailOut, TournamentOut
 
 router = APIRouter()
@@ -74,7 +74,23 @@ async def get_tournament(
     if contest_ids:
         pc_result = await db.execute(
             select(UserTeam.contest_id, func.count(UserTeam.id).label('cnt'))
+            .join(Contest, Contest.id == UserTeam.contest_id)
+            .outerjoin(
+                ContestJoinRequest,
+                and_(
+                    ContestJoinRequest.contest_id == UserTeam.contest_id,
+                    ContestJoinRequest.user_id == UserTeam.user_id,
+                ),
+            )
             .where(UserTeam.contest_id.in_(contest_ids))
+            .where(
+                or_(
+                    Contest.sponsor_id.is_(None),
+                    Contest.join_approval_required.is_(False),
+                    Contest.sponsor_id == UserTeam.user_id,
+                    ContestJoinRequest.status == "APPROVED",
+                )
+            )
             .group_by(UserTeam.contest_id)
         )
         pc_map = {row.contest_id: int(row.cnt) for row in pc_result.all()}
