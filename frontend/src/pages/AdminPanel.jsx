@@ -1326,16 +1326,17 @@ function AllTeamsTab() {
 }
 
 // ─── Analytics Tab ────────────────────────────────────────────────────────────
-function StatCard({ label, value }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-lg bg-muted p-3 gap-0.5 min-w-[90px]">
-      <span className="text-xl font-bold tabular-nums">{value ?? '—'}</span>
-      <span className="text-[10px] text-muted-foreground uppercase tracking-wide text-center">{label}</span>
-    </div>
-  )
-}
-
 function AnalyticsTab() {
+  const PERIOD_OPTIONS = [
+    { key: '1h', label: '1H' },
+    { key: '2h', label: '2H' },
+    { key: '6h', label: '6H' },
+    { key: '12h', label: '12H' },
+    { key: '14h', label: '14H' },
+    { key: 'alltime', label: 'ALLTIME' },
+  ]
+  const [period, setPeriod] = useState('2h')
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['analytics-summary'],
     queryFn: () => analyticsApi.summary().then((r) => r.data),
@@ -1345,7 +1346,84 @@ function AnalyticsTab() {
   if (isLoading) return <p className="text-sm text-muted-foreground py-4">Loading analytics…</p>
   if (isError) return <p className="text-sm text-destructive py-4">Failed to load analytics.</p>
 
-  const { active_now, visitors, logged_in_users, total_page_views, top_pages, dau_7d } = data
+  const funnel = data?.funnel_over_time?.[period] ?? {}
+  const stages = [
+    {
+      key: 'unique_anonymous_users',
+      label: 'Anon users',
+      fullLabel: 'Unique anonymous users',
+      value: Number(funnel.unique_anonymous_users ?? 0),
+      color: '#7D91AA',
+    },
+    {
+      key: 'unique_logged_in_users',
+      label: 'Logged-in users',
+      fullLabel: 'Unique logged in users',
+      value: Number(funnel.unique_logged_in_users ?? 0),
+      color: '#6366F1',
+    },
+    {
+      key: 'new_accounts_created',
+      label: 'New accounts',
+      fullLabel: 'New accounts created',
+      value: Number(funnel.new_accounts_created ?? 0),
+      color: '#14B889',
+    },
+    {
+      key: 'new_user_team_joins',
+      label: 'Team joins',
+      fullLabel: 'New user teams joins into contests',
+      value: Number(funnel.new_user_team_joins ?? 0),
+      color: '#22B8CF',
+    },
+    {
+      key: 'new_users_sponsoring',
+      label: 'New sponsors',
+      fullLabel: 'New users sponsoring a contest',
+      value: Number(funnel.new_users_sponsoring ?? 0),
+      color: '#F5A40A',
+    },
+    {
+      key: 'new_contests_first_team',
+      label: '1st-team contests',
+      fullLabel: 'New contests getting first user team',
+      value: Number(funnel.new_contests_first_team ?? 0),
+      color: '#F43F5E',
+    },
+  ]
+  const maxValue = Math.max(1, ...stages.map((stage) => stage.value))
+  const lists = data?.analytics_lists ?? {}
+  const liveUpcoming =
+    lists.live_upcoming_with_teams
+    ?? data?.live_upcoming_with_teams
+    ?? data?.live_upcoming_contests_with_teams
+    ?? []
+  const byPeriod = lists.by_period?.[period] ?? {}
+  const contestsGettingFirstTeam = byPeriod.contests_getting_first_team ?? []
+  const newAccounts = byPeriod.new_accounts ?? []
+  const usersCreatingFirstTeam = byPeriod.users_creating_first_team ?? []
+
+  const fmtDate = (value) => {
+    if (!value) return '—'
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return '—'
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yy = String(d.getFullYear()).slice(-2)
+    const hh = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return `${dd}/${mm}/${yy} ${hh}:${min}`
+  }
+
+  const rowTitleClass = (index) => {
+    if (index === 0) return 'text-emerald-300'
+    if (index === 1) return 'text-cyan-300'
+    if (index === 2) return 'text-amber-300'
+    return 'text-foreground'
+  }
+
+  const cardClass = 'rounded-2xl border border-border/70 bg-card p-4 shadow-sm'
+  const tableClass = 'rounded-xl border border-border/50 overflow-hidden'
 
   return (
     <div className="flex flex-col gap-5">
@@ -1354,90 +1432,179 @@ function AnalyticsTab() {
         <Btn variant="ghost" onClick={() => refetch()}>Refresh now</Btn>
       </div>
 
-      {/* Active now */}
-      <section>
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Live (last 30 min)</p>
-        <div className="flex gap-3 flex-wrap">
-          <StatCard label="Active sessions" value={active_now} />
-          <StatCard label="Total page views" value={total_page_views} />
+      <section className="flex flex-wrap gap-2">
+        {PERIOD_OPTIONS.map((option) => (
+          <button
+            key={option.key}
+            onClick={() => setPeriod(option.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              period === option.key
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <p className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">Funnel over time ({period.toUpperCase()})</p>
+          <span className="text-[11px] text-muted-foreground">Compact view</span>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          {stages.map((stage) => {
+            const widthPct = Math.max(18, (stage.value / maxValue) * 92)
+
+            return (
+              <div key={stage.key} className="grid grid-cols-[112px_1fr] items-center gap-2">
+                <div className="flex items-center gap-2" title={stage.fullLabel}>
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: stage.color }}
+                  />
+                  <span className="text-[11px] text-muted-foreground leading-none truncate">{stage.label}</span>
+                </div>
+
+                <div className="h-8 rounded-xl bg-muted/50 px-2">
+                  <div className="flex h-full items-center justify-end gap-1.5">
+                    <div
+                      className="h-6 rounded-md transition-all duration-500"
+                      style={{
+                        width: `${widthPct}%`,
+                        backgroundColor: stage.color,
+                        boxShadow: `0 6px 14px ${stage.color}2A`,
+                      }}
+                    />
+                    <span className="w-12 shrink-0 text-sm font-semibold tabular-nums text-right text-foreground">{stage.value.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </section>
 
-      <hr className="my-1" />
-
-      {/* Unique visitors */}
-      <section>
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Unique visitors (by device)</p>
-        <div className="flex gap-3 flex-wrap">
-          <StatCard label="Last 24h" value={visitors.last_24h} />
-          <StatCard label="Last 7 days" value={visitors.last_7d} />
-          <StatCard label="Last 30 days" value={visitors.last_30d} />
-          <StatCard label="All time" value={visitors.all_time} />
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-1.5">
-          Counts anonymous + logged-in as 1 if from the same browser.
-        </p>
-      </section>
-
-      <hr className="my-1" />
-
-      {/* Logged-in users */}
-      <section>
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Logged-in users</p>
-        <div className="flex gap-3 flex-wrap">
-          <StatCard label="Last 24h" value={logged_in_users.last_24h} />
-          <StatCard label="Last 7 days" value={logged_in_users.last_7d} />
-          <StatCard label="Last 30 days" value={logged_in_users.last_30d} />
-        </div>
-      </section>
-
-      <hr className="my-1" />
-
-      {/* DAU table */}
-      {dau_7d.length > 0 && (
-        <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Daily unique visitors — last 7 days</p>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border">
-                <th className="text-left py-1 pr-4 font-medium">Date</th>
-                <th className="text-right py-1 font-medium">Visitors</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dau_7d.map((row) => (
-                <tr key={row.date} className="border-b border-border/40">
-                  <td className="py-1 pr-4 tabular-nums">{row.date}</td>
-                  <td className="py-1 text-right tabular-nums font-semibold">{row.visitors}</td>
-                </tr>
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div className={cardClass}>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Live/Upcoming contests with teams</p>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{liveUpcoming.length}</span>
+          </div>
+          <div className={tableClass}>
+            <div className="grid grid-cols-[22px_1fr_56px] bg-muted/55 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sticky top-0 z-10">
+              <span>#</span>
+              <span>Contest</span>
+              <span className="text-right">Teams</span>
+            </div>
+            <div className="max-h-72 overflow-auto divide-y divide-border/40">
+              {liveUpcoming.length === 0 && (
+                <p className="text-sm text-muted-foreground p-3">No contests found.</p>
+              )}
+              {liveUpcoming.map((item, index) => (
+                <div key={item.contest_id} className="grid grid-cols-[22px_1fr_56px] items-start gap-2 px-2 py-2 text-sm hover:bg-muted/35 transition">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">{index + 1}</span>
+                  <div className="min-w-0">
+                    <p className={`text-[12px] font-medium leading-tight break-words ${rowTitleClass(index)}`} title={item.contest_name}>{item.contest_name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">Match: {fmtDate(item.match_date)}</p>
+                  </div>
+                  <span className="text-right tabular-nums font-semibold">{item.team_count}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+            </div>
+          </div>
+        </div>
 
-      {/* Top pages */}
-      {top_pages.length > 0 && (
-        <section>
-          <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Top pages (all time)</p>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-muted-foreground border-b border-border">
-                <th className="text-left py-1 pr-4 font-medium">Page</th>
-                <th className="text-right py-1 font-medium">Views</th>
-              </tr>
-            </thead>
-            <tbody>
-              {top_pages.map((row) => (
-                <tr key={row.page} className="border-b border-border/40">
-                  <td className="py-1 pr-4 font-mono">{row.page}</td>
-                  <td className="py-1 text-right tabular-nums font-semibold">{row.views}</td>
-                </tr>
+        <div className={cardClass}>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">First new team contests ({period.toUpperCase()})</p>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{contestsGettingFirstTeam.length}</span>
+          </div>
+          <div className={tableClass}>
+            <div className="grid grid-cols-[22px_1fr_56px] bg-muted/55 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sticky top-0 z-10">
+              <span>#</span>
+              <span>Contest</span>
+              <span className="text-right">Teams</span>
+            </div>
+            <div className="max-h-72 overflow-auto divide-y divide-border/40">
+              {contestsGettingFirstTeam.length === 0 && (
+                <p className="text-sm text-muted-foreground p-3">No contests in this period.</p>
+              )}
+              {contestsGettingFirstTeam.map((item, index) => (
+                <div key={`${item.contest_id}-${item.first_team_at || 'na'}`} className="grid grid-cols-[22px_1fr_56px] items-start gap-2 px-2 py-2 text-sm hover:bg-muted/35 transition">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">{index + 1}</span>
+                  <div className="min-w-0">
+                    <p className={`text-[12px] font-medium leading-tight break-words ${rowTitleClass(index)}`} title={item.contest_name}>{item.contest_name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">First team: {fmtDate(item.first_team_at)}</p>
+                  </div>
+                  <span className="text-right tabular-nums font-semibold">{item.team_count}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+            </div>
+          </div>
+        </div>
+
+        <div className={cardClass}>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">New accounts ({period.toUpperCase()})</p>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{newAccounts.length}</span>
+          </div>
+          <div className={tableClass}>
+            <div className="grid grid-cols-[22px_1fr_1.4fr] bg-muted/55 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sticky top-0 z-10">
+              <span>#</span>
+              <span>Name</span>
+              <span>Email</span>
+            </div>
+            <div className="max-h-72 overflow-auto divide-y divide-border/40">
+              {newAccounts.length === 0 && (
+                <p className="text-sm text-muted-foreground p-3">No new accounts in this period.</p>
+              )}
+              {newAccounts.map((item, index) => (
+                <div key={`${item.user_id}-${item.created_at || 'na'}`} className="grid grid-cols-[22px_1fr_1.4fr] items-start gap-2 px-2 py-2 text-sm hover:bg-muted/35 transition">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">{index + 1}</span>
+                  <div className="min-w-0">
+                    <p className={`text-[12px] font-medium leading-tight break-words ${rowTitleClass(index)}`} title={item.name || 'Unknown user'}>{item.name || 'Unknown user'}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">Created: {fmtDate(item.created_at)}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground break-all" title={item.email || '—'}>{item.email || '—'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className={cardClass}>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Users creating first team ({period.toUpperCase()})</p>
+            <span className="text-[11px] text-muted-foreground tabular-nums">{usersCreatingFirstTeam.length}</span>
+          </div>
+          <div className={tableClass}>
+            <div className="grid grid-cols-[22px_1fr_1.15fr] bg-muted/55 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sticky top-0 z-10">
+              <span>#</span>
+              <span>User</span>
+              <span>Contest</span>
+            </div>
+            <div className="max-h-72 overflow-auto divide-y divide-border/40">
+              {usersCreatingFirstTeam.length === 0 && (
+                <p className="text-sm text-muted-foreground p-3">No first-team creators in this period.</p>
+              )}
+              {usersCreatingFirstTeam.map((item, index) => (
+                <div key={`${item.user_id}-${item.first_team_at || 'na'}`} className="grid grid-cols-[22px_1fr_1.15fr] items-start gap-2 px-2 py-2 text-sm hover:bg-muted/35 transition">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">{index + 1}</span>
+                  <div className="min-w-0">
+                    <p className={`text-[12px] font-medium leading-tight break-words ${rowTitleClass(index)}`} title={item.name || 'Unknown user'}>{item.name || 'Unknown user'}</p>
+                    <p className="text-[11px] text-muted-foreground break-all" title={item.email || '—'}>{item.email || '—'}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">First team: {fmtDate(item.first_team_at)}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground break-words" title={item.contest_name || '—'}>{item.contest_name || '—'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
