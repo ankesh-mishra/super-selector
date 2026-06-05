@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { contestsApi, userTeamsApi, leaderboardApi } from '../api/endpoints'
 import TeamBadge from '../components/TeamBadge'
 import LeaderboardTable from '../components/LeaderboardTable'
@@ -103,9 +103,16 @@ function Scorecard({ contest }) {
 export default function ContestDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState('super selectors')
+  const initialTab = searchParams.get('tab')
+  const [tab, setTab] = useState(
+    initialTab === 'my-team' || initialTab === 'scorecard' || initialTab === 'super-selectors'
+      ? initialTab.replace('-', ' ')
+      : 'super selectors'
+  )
+  const [joinRequestError, setJoinRequestError] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
   const [sponsorForm, setSponsorForm] = useState({ contact: '', prizeType: '', prize: '', requireApproval: false })
   const [showSponsorForm, setShowSponsorForm] = useState(false)
@@ -138,11 +145,16 @@ export default function ContestDetailPage() {
     queryKey: ['join-requests', id],
     queryFn: () => contestsApi.joinRequests(id).then((r) => r.data),
     enabled: !!(contest?.sponsor_id && user?.id === contest?.sponsor_id),
+    refetchInterval: contest?.sponsor_id && user?.id === contest?.sponsor_id ? 10_000 : false,
   })
 
   const requestJoinMutation = useMutation({
     mutationFn: () => contestsApi.requestJoin(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-join-request', id] }),
+    onSuccess: () => {
+      setJoinRequestError('')
+      queryClient.invalidateQueries({ queryKey: ['my-join-request', id] })
+    },
+    onError: (e) => setJoinRequestError(e.response?.data?.detail || 'Unable to submit join request'),
   })
 
   const sponsorContestMutation = useMutation({
@@ -165,12 +177,29 @@ export default function ContestDetailPage() {
 
   const countdown = useCountdown(contest && !contest.is_locked ? contest.match_date : null)
 
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'my-team') setTab('my team')
+    else if (tabParam === 'scorecard') setTab('scorecard')
+    else if (tabParam === 'super-selectors') setTab('super selectors')
+  }, [searchParams])
+
+  useEffect(() => {
+    const urlTab = tab === 'my team' ? 'my-team' : tab === 'scorecard' ? 'scorecard' : 'super-selectors'
+    if (searchParams.get('tab') !== urlTab) {
+      const next = new URLSearchParams(searchParams)
+      next.set('tab', urlTab)
+      setSearchParams(next, { replace: true })
+    }
+  }, [tab, searchParams, setSearchParams])
+
   if (isLoading) return <p className="text-center py-12" style={{ color: '#64748b' }}>Loading…</p>
   if (!contest) return <p className="text-center py-12 text-red-400">Contest not found.</p>
 
   const isLive = contest.is_locked && !contest.is_completed
   const isDone = contest.is_completed
   const isOpen = !contest.is_locked
+  const requiresApproval = !!(contest.sponsor_id && contest.join_approval_required && user?.id !== contest.sponsor_id)
   const tournamentName = contest.tournament?.name
   const subHeader = contest.match_number != null && tournamentName
     ? `Match #${contest.match_number} · ${tournamentName}`
@@ -386,37 +415,41 @@ export default function ContestDetailPage() {
       )}
 
       {/* ── Manage Requests (sponsor view) ── */}
-      {contest.sponsor_id && user?.id === contest.sponsor_id && joinRequests && joinRequests.length > 0 && (
+      {contest.sponsor_id && user?.id === contest.sponsor_id && joinRequests && (
         <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: '#0f1623', border: '1px solid rgba(16,185,129,.25)' }}>
           <p className="text-xs font-bold text-white">Join Requests</p>
-          {joinRequests.map((req) => (
-            <div key={req.id} className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-white truncate">{req.user_name}</p>
-                <p className="text-[0.6rem]" style={{ color: req.status === 'APPROVED' ? '#34d399' : req.status === 'REJECTED' ? '#f87171' : '#94a3b8' }}>
-                  {req.status}
-                </p>
-              </div>
-              {req.status === 'PENDING' && (
-                <div className="flex gap-1.5 shrink-0">
-                  <button
-                    onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'APPROVED' })}
-                    className="text-xs px-2 py-1 rounded-lg font-semibold"
-                    style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.4)', color: '#34d399' }}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'REJECTED' })}
-                    className="text-xs px-2 py-1 rounded-lg font-semibold"
-                    style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
-                  >
-                    Reject
-                  </button>
+          {joinRequests.length === 0 ? (
+            <p className="text-xs" style={{ color: '#94a3b8' }}>No join requests yet.</p>
+          ) : (
+            joinRequests.map((req) => (
+              <div key={req.id} className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{req.user_name}</p>
+                  <p className="text-[0.6rem]" style={{ color: req.status === 'APPROVED' ? '#34d399' : req.status === 'REJECTED' ? '#f87171' : '#94a3b8' }}>
+                    {req.status}
+                  </p>
                 </div>
-              )}
-            </div>
-          ))}
+                {req.status === 'PENDING' && (
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'APPROVED' })}
+                      className="text-xs px-2 py-1 rounded-lg font-semibold"
+                      style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.4)', color: '#34d399' }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => updateJoinRequestMutation.mutate({ userId: req.user_id, status: 'REJECTED' })}
+                      className="text-xs px-2 py-1 rounded-lg font-semibold"
+                      style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#f87171' }}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -459,12 +492,12 @@ export default function ContestDetailPage() {
         /* My Team tab */
         myTeam ? (
           <div className="flex flex-col gap-3">
-            {/* Join request banner (for sponsored contests with approval required, non-sponsor users) */}
-            {contest.sponsor_id && contest.join_approval_required && user?.id !== contest.sponsor_id && (
+            {/* Join request banner (build team first, then request sponsor approval) */}
+            {requiresApproval && (
               myJoinRequest == null ? (
                 <div className="rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
                   style={{ background: 'rgba(234,179,8,.08)', border: '1px solid rgba(234,179,8,.3)' }}>
-                  <p className="text-xs" style={{ color: '#facc15' }}>This contest requires sponsor approval to participate.</p>
+                  <p className="text-xs" style={{ color: '#facc15' }}>This contest requires sponsor approval. Request to join first.</p>
                   <button
                     onClick={() => requestJoinMutation.mutate()}
                     disabled={requestJoinMutation.isPending}
@@ -482,7 +515,14 @@ export default function ContestDetailPage() {
                 <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)', color: '#f87171' }}>
                   ✗ Join request declined by sponsor
                 </div>
-              ) : null
+              ) : (
+                <div className="rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.3)', color: '#34d399' }}>
+                  ✓ Join request approved.
+                </div>
+              )
+            )}
+            {joinRequestError && (
+              <p className="text-xs" style={{ color: '#f87171' }}>{joinRequestError}</p>
             )}
             <div className="flex items-center justify-between">
               <div>

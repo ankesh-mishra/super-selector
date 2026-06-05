@@ -8,13 +8,18 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import Contest, ContestJoinRequest, Player, User, UserTeam, UserTeamPlayer
+from app.models import Contest, Player, User, UserTeam, UserTeamPlayer
 from app.schemas import UserTeamCreate, UserTeamOut
 from app.services.team_validator import TeamValidationError, validate_team_selection
+
 router = APIRouter()
 
 
-@router.post("/{contest_id}/my-team", response_model=UserTeamOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{contest_id}/my-team",
+    response_model=UserTeamOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_user_team(
     contest_id: uuid.UUID,
     body: UserTeamCreate,
@@ -25,35 +30,15 @@ async def create_user_team(
     result = await db.execute(select(Contest).where(Contest.id == contest_id))
     contest = result.scalar_one_or_none()
     if contest is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found"
+        )
 
     if contest.is_locked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked. Team cannot be created.")
-
-    # Sponsor approval gate (sponsor themselves are always allowed)
-    if contest.sponsor_id and contest.join_approval_required and contest.sponsor_id != current_user.id:
-        req_result = await db.execute(
-            select(ContestJoinRequest).where(
-                ContestJoinRequest.contest_id == contest_id,
-                ContestJoinRequest.user_id == current_user.id,
-            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Contest is locked. Team cannot be created.",
         )
-        join_req = req_result.scalar_one_or_none()
-        if join_req is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This contest requires sponsor approval. Request to join first.",
-            )
-        if join_req.status == "PENDING":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your join request is pending sponsor approval.",
-            )
-        if join_req.status == "REJECTED":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your join request was declined by the sponsor.",
-            )
 
     # One team per user per contest
     existing = await db.execute(
@@ -72,7 +57,9 @@ async def create_user_team(
     try:
         players = await validate_team_selection(contest, body.players, db)
     except TeamValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message
+        )
 
     # Persist
     player_lookup = {p.id: p for p in players}
@@ -124,7 +111,10 @@ async def get_my_team(
     )
     user_team = result.scalar_one_or_none()
     if user_team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No team found for this contest")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No team found for this contest",
+        )
     return user_team
 
 
@@ -139,10 +129,15 @@ async def update_user_team(
     result = await db.execute(select(Contest).where(Contest.id == contest_id))
     contest = result.scalar_one_or_none()
     if contest is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found"
+        )
 
     if contest.is_locked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contest is locked. Team cannot be edited.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Contest is locked. Team cannot be edited.",
+        )
 
     # Find existing team
     result = await db.execute(
@@ -153,24 +148,33 @@ async def update_user_team(
     )
     user_team = result.scalar_one_or_none()
     if user_team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No team found for this contest")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No team found for this contest",
+        )
 
     # Validate new selection
     try:
         await validate_team_selection(contest, body.players, db)
     except TeamValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message
+        )
 
     # Replace player selections
-    await db.execute(delete(UserTeamPlayer).where(UserTeamPlayer.user_team_id == user_team.id))
+    await db.execute(
+        delete(UserTeamPlayer).where(UserTeamPlayer.user_team_id == user_team.id)
+    )
 
     for sel in body.players:
-        db.add(UserTeamPlayer(
-            user_team_id=user_team.id,
-            player_id=sel.player_id,
-            is_captain=sel.is_captain,
-            is_vice_captain=sel.is_vice_captain,
-        ))
+        db.add(
+            UserTeamPlayer(
+                user_team_id=user_team.id,
+                player_id=sel.player_id,
+                is_captain=sel.is_captain,
+                is_vice_captain=sel.is_vice_captain,
+            )
+        )
 
     await db.commit()
 
@@ -199,7 +203,9 @@ async def get_user_team_by_user(
         result = await db.execute(select(Contest).where(Contest.id == contest_id))
         contest = result.scalar_one_or_none()
         if contest is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Contest not found"
+            )
         if not contest.is_locked:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -218,5 +224,7 @@ async def get_user_team_by_user(
     )
     user_team = result.scalar_one_or_none()
     if user_team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Team not found"
+        )
     return user_team
